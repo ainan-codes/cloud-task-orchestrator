@@ -142,6 +142,9 @@ def startup_recovery():
     3. Reconciles platform_accounts and publication_rules.
     4. Starts autonomous watchdog background thread.
     """
+    if os.environ.get("VERCEL"):
+        return
+
     logger.info("Initializing Autonomous Startup Recovery...")
     try:
         from core.watchdog import WatchdogService
