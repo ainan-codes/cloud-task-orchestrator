@@ -914,6 +914,7 @@ export const api = {
       body: JSON.stringify({ token, fb_page_id: fbPageId || null }),
     });
   },
+  getServiceAccount: () => backendFetch("/api/system/service-account"),
   generateFlowPrompts: (payload) =>
     backendFetch("/api/flow/prompts", {
       method: "POST",

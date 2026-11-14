@@ -2,7 +2,26 @@ import React, { useState, useRef, useEffect } from "react";
 import { api } from "../api.js";
 import CountUp from "./CountUp.jsx";
 import { FacebookIcon, GoogleDriveIcon } from "./BrandIcons.jsx";
-import { X, Key, Calendar, FileText, Sparkles, BookOpen } from "lucide-react";
+import {
+  X,
+  Key,
+  Calendar,
+  FileText,
+  Sparkles,
+  BookOpen,
+  Eye,
+  EyeOff,
+  Check,
+  AlertCircle,
+  ExternalLink,
+  Zap,
+  Copy,
+  CheckCheck,
+  Clock,
+  Sun,
+  Video,
+  Camera,
+} from "lucide-react";
 import AutopilotModal from "./AutopilotModal.jsx";
 
 const POLL_INTERVAL_MS = 2000;
@@ -83,6 +102,9 @@ export default function Pages({
   const [tokenTesting, setTokenTesting] = useState(false);
   const [tokenTestResult, setTokenTestResult] = useState(null);
   const [hasExistingToken, setHasExistingToken] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [saEmail, setSaEmail] = useState("");
+  const [copiedSaEmail, setCopiedSaEmail] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [autopilotPage, setAutopilotPage] = useState(null);
 
@@ -94,6 +116,23 @@ export default function Pages({
   const [healthOpenId, setHealthOpenId] = useState(null);
   const [healthData, setHealthData] = useState({});
   const [healthLoading, setHealthLoading] = useState(null);
+
+  useEffect(() => {
+    api.getServiceAccount()
+      .then((res) => {
+        if (res && res.service_account_email) {
+          setSaEmail(res.service_account_email);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  function copySaEmail() {
+    const emailToCopy = saEmail || "reel-ledger@reel-ledger-505014.iam.gserviceaccount.com";
+    navigator.clipboard.writeText(emailToCopy);
+    setCopiedSaEmail(true);
+    setTimeout(() => setCopiedSaEmail(false), 2000);
+  }
 
   // Stop any in-flight poll if the tab is switched away from (unmounts this component).
   useEffect(() => () => clearTimeout(pollTimer.current), []);
@@ -134,6 +173,7 @@ export default function Pages({
   function openAddModal() {
     setEditingPageId(null);
     setHasExistingToken(false);
+    setShowToken(false);
     setForm(BLANK);
     setPoolInput("");
     setTokenTestResult(null);
@@ -150,6 +190,7 @@ export default function Pages({
   function openEditModal(p, tab = "credentials") {
     setEditingPageId(p.id);
     setHasExistingToken(Boolean(p.has_token || p.fb_access_token_encrypted || p.token_health));
+    setShowToken(false);
     setForm({
       name: p.name || "",
       fb_page_id: p.fb_page_id || "",
@@ -261,6 +302,7 @@ export default function Pages({
   function cleanFbPageId(val) {
     if (!val) return "";
     const s = String(val).trim();
+    if (s.includes("@")) return ""; // Suppress browser autofilled emails
     const digits = s.match(/\d{10,}/);
     return digits ? digits[0] : s;
   }
@@ -609,662 +651,832 @@ export default function Pages({
       {showForm && (
         <div className="overlay" onClick={(e) => e.target.className === "overlay" && setShowForm(false)}>
           <div className="modal" style={{ width: "min(640px, 95vw)", padding: "22px 26px" }}>
-            {/* Modal Header */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <FacebookIcon size={30} />
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 18, color: "var(--text-primary)", lineHeight: 1.2 }}>
-                    {editingPageId ? `Configure Page: ${form.name || "Untitled"}` : "Add Facebook Page"}
-                  </h2>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                    Meta Graph API credentials, Google Drive folder, and automated schedule
+            <form
+              autoComplete="off"
+              onSubmit={(e) => {
+                e.preventDefault();
+                save();
+              }}
+              style={{ display: "contents" }}
+            >
+              {/* Browser Autofill Decoy Fields */}
+              <input type="text" name="prevent_autofill_username_decoy" style={{ display: "none" }} tabIndex={-1} autoComplete="off" />
+              <input type="password" name="prevent_autofill_pwd_decoy" style={{ display: "none" }} tabIndex={-1} autoComplete="new-password" />
+
+              {/* Modal Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <FacebookIcon size={32} />
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--text-primary)", letterSpacing: "-0.01em" }}>
+                      {editingPageId ? `Configure Page: ${form.name || "Untitled"}` : "Connect Facebook Page"}
+                    </h2>
+                    <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2 }}>
+                      Publish and schedule media directly via Meta Graph API credentials
+                    </div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-muted)",
+                    padding: 4,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
+
+              {/* Modal Section Tabs */}
+              <div
                 style={{
-                  background: "transparent",
-                  color: "var(--text-muted)",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 6,
+                  background: "var(--bg-input)",
                   padding: 4,
-                  borderRadius: 6,
-                  cursor: "pointer",
+                  borderRadius: 8,
+                  border: "1px solid var(--border-subtle)",
+                  marginBottom: 18,
                 }}
               >
-                <X size={18} />
-              </button>
-            </div>
+                {[
+                  { id: "credentials", label: "Credentials", icon: Key },
+                  { id: "schedule", label: "Drive & Timing", icon: Calendar },
+                  { id: "captions", label: "Captions & Tags", icon: FileText },
+                  { id: "autopilot", label: "Autopilot", icon: Sparkles },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const active = formTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className="btn btn-sm"
+                      style={{
+                        justifyContent: "center",
+                        gap: 6,
+                        fontSize: 12,
+                        fontWeight: active ? 600 : 500,
+                        background: active
+                          ? tab.id === "autopilot"
+                            ? "rgba(16, 185, 129, 0.15)"
+                            : "var(--bg-card)"
+                          : "transparent",
+                        color: active
+                          ? tab.id === "autopilot"
+                            ? "#34d399"
+                            : "var(--text-primary)"
+                          : "var(--text-muted)",
+                        border: active
+                          ? tab.id === "autopilot"
+                            ? "1px solid rgba(16, 185, 129, 0.3)"
+                            : "1px solid var(--border-medium)"
+                          : "1px solid transparent",
+                      }}
+                      onClick={() => switchTab(tab.id)}
+                    >
+                      <Icon size={13} />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
 
-            {/* Modal Section Tabs */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
-                gap: 6,
-                background: "var(--bg-input)",
-                padding: 4,
-                borderRadius: 8,
-                border: "1px solid var(--border-subtle)",
-                marginBottom: 18,
-              }}
-            >
-              <button
-                type="button"
-                className={`btn btn-sm ${formTab === "credentials" ? "btn-secondary" : "btn-ghost"}`}
-                style={{
-                  justifyContent: "center",
-                  fontSize: 12,
-                  background: formTab === "credentials" ? "var(--bg-card)" : "transparent",
-                  color: formTab === "credentials" ? "#fff" : "var(--text-muted)",
-                }}
-                onClick={() => switchTab("credentials")}
-              >
-                <Key size={13} />
-                <span>Page & Token</span>
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${formTab === "schedule" ? "btn-secondary" : "btn-ghost"}`}
-                style={{
-                  justifyContent: "center",
-                  fontSize: 12,
-                  background: formTab === "schedule" ? "var(--bg-card)" : "transparent",
-                  color: formTab === "schedule" ? "#fff" : "var(--text-muted)",
-                }}
-                onClick={() => switchTab("schedule")}
-              >
-                <Calendar size={13} />
-                <span>Drive & Timing</span>
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${formTab === "captions" ? "btn-secondary" : "btn-ghost"}`}
-                style={{
-                  justifyContent: "center",
-                  fontSize: 12,
-                  background: formTab === "captions" ? "var(--bg-card)" : "transparent",
-                  color: formTab === "captions" ? "#fff" : "var(--text-muted)",
-                }}
-                onClick={() => switchTab("captions")}
-              >
-                <FileText size={13} />
-                <span>Captions & Tags</span>
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${formTab === "autopilot" ? "btn-secondary" : "btn-ghost"}`}
-                style={{
-                  justifyContent: "center",
-                  fontSize: 12,
-                  background: formTab === "autopilot" ? "rgba(16, 185, 129, 0.15)" : "transparent",
-                  color: formTab === "autopilot" ? "#34d399" : "var(--text-muted)",
-                  border: formTab === "autopilot" ? "1px solid rgba(16, 185, 129, 0.3)" : "none",
-                }}
-                onClick={() => switchTab("autopilot")}
-              >
-                <Sparkles size={13} style={{ color: formTab === "autopilot" ? "#34d399" : "inherit" }} />
-                <span>Autopilot</span>
-              </button>
-            </div>
-
-            {/* Modal Scrollable Body */}
-            <div ref={modalBodyRef} style={{ maxHeight: "68vh", overflowY: "auto", paddingRight: 6, paddingTop: 4, paddingBottom: 16 }}>
-              {formTab === "credentials" && (
-                <div>
-                  <div className="field">
-                    <label>Page Name</label>
-                    <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Daily Viral Highlights" />
-                  </div>
-                  <div className="field">
-                    <label>Facebook Page ID</label>
-                    <input value={form.fb_page_id} onChange={(e) => set("fb_page_id", e.target.value)} placeholder="e.g. 102938475619283" />
-                    <div className="hint">Found in Facebook Page About tab or Graph API Explorer (/me/accounts)</div>
-                  </div>
-                  <div className="field">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span>Page Access Token (Long-Lived or System User)</span>
-                        {hasExistingToken && !form.fb_access_token && (
-                          <span style={{ fontSize: 11, background: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "2px 8px", borderRadius: 10, fontWeight: 500 }}>
-                            ● Saved & Encrypted
+              {/* Modal Scrollable Body */}
+              <div ref={modalBodyRef} style={{ maxHeight: "68vh", overflowY: "auto", paddingRight: 6, paddingTop: 4, paddingBottom: 16 }}>
+                {formTab === "credentials" && (
+                  <div>
+                    <div className="field">
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Page Display Name</label>
+                      <input
+                        id="page_display_name_input"
+                        name="page_display_name_input"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        value={form.name}
+                        onChange={(e) => set("name", e.target.value)}
+                        placeholder="e.g. Apex Media Group"
+                      />
+                      <div className="hint">An internal label to identify this account in your dashboard.</div>
+                    </div>
+                    <div className="field">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Facebook Page ID</label>
+                        <span className="hint" style={{ fontSize: 11, color: "var(--text-muted)" }}>15–16 digit numeric ID</span>
+                      </div>
+                      <input
+                        id="meta_page_numeric_id"
+                        name="meta_page_numeric_id"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        data-form-type="other"
+                        value={form.fb_page_id}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.includes("@")) return;
+                          set("fb_page_id", val);
+                        }}
+                        placeholder="e.g. 100084928374920"
+                        spellCheck={false}
+                      />
+                      <div className="hint">Found in Meta Business Suite or under your Facebook Page About tab.</div>
+                    </div>
+                    <div className="field">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+                            Page Access Token
+                          </label>
+                          {hasExistingToken && !form.fb_access_token && (
+                            <span style={{
+                              fontSize: 11,
+                              background: "rgba(16, 185, 129, 0.15)",
+                              color: "#34d399",
+                              padding: "2px 8px",
+                              borderRadius: 10,
+                              fontWeight: 500,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4
+                            }}>
+                              <Check size={11} /> Saved & Active
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: 11, padding: "3px 8px", display: "inline-flex", alignItems: "center", gap: 5 }}
+                          disabled={tokenTesting || (!form.fb_access_token && !hasExistingToken)}
+                          onClick={testTokenLive}
+                        >
+                          <Zap size={12} />
+                          <span>{tokenTesting ? "Verifying with Meta…" : "Test Token"}</span>
+                        </button>
+                      </div>
+                      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                        <input
+                          id="meta_graph_access_token"
+                          name="meta_graph_access_token"
+                          type={showToken ? "text" : "password"}
+                          autoComplete="new-password"
+                          data-lpignore="true"
+                          data-1p-ignore="true"
+                          data-form-type="other"
+                          value={form.fb_access_token}
+                          onChange={(e) => {
+                            set("fb_access_token", e.target.value);
+                            setTokenTestResult(null);
+                          }}
+                          placeholder={hasExistingToken ? "•••••••••••••••• (Leave blank to keep saved token, or paste new)" : "EAAB..."}
+                          spellCheck={false}
+                          style={{ paddingRight: 40, fontFamily: form.fb_access_token ? "var(--font-mono, monospace)" : "inherit" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowToken(!showToken)}
+                          style={{
+                            position: "absolute",
+                            right: 8,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            background: "transparent",
+                            border: "none",
+                            color: "var(--text-muted)",
+                            cursor: "pointer",
+                            padding: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          title={showToken ? "Hide token" : "Show token"}
+                          tabIndex={-1}
+                        >
+                          {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
+                        </button>
+                      </div>
+                      {tokenTestResult && (
+                        <div style={{
+                          marginTop: 8,
+                          padding: "8px 12px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          background: tokenTestResult.valid ? "rgba(16, 185, 129, 0.1)" : "rgba(239, 68, 68, 0.1)",
+                          color: tokenTestResult.valid ? "#34d399" : "#fca5a5",
+                          border: `1px solid ${tokenTestResult.valid ? "rgba(16, 185, 129, 0.25)" : "rgba(239, 68, 68, 0.25)"}`,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}>
+                          {tokenTestResult.valid ? <Check size={14} /> : <AlertCircle size={14} />}
+                          <span>
+                            {tokenTestResult.valid
+                              ? `Verified: Token is valid for "${tokenTestResult.page_name}" (ID: ${tokenTestResult.page_id})`
+                              : `Token verification failed: ${tokenTestResult.error}`}
                           </span>
-                        )}
+                        </div>
+                      )}
+                      <div className="hint" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+                        <span>
+                          {hasExistingToken && !form.fb_access_token
+                            ? "Encrypted securely in database. Only paste here if rotating."
+                            : "Encrypted at rest with AES-256; never exposed in client bundles."}
+                        </span>
+                        <button
+                          type="button"
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            padding: 0,
+                            color: "var(--accent-light)",
+                            cursor: "pointer",
+                            fontSize: 11.5,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          onClick={() => setShowGuideModal(true)}
+                        >
+                          <BookOpen size={12} />
+                          <span>Step-by-step setup guide →</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="field">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>
+                          <GoogleDriveIcon size={16} />
+                          <span>Google Drive Asset Folder</span>
+                        </label>
+                        <span className="hint" style={{ fontSize: 11, color: "var(--accent-light)" }}>
+                          Accepts full link or ID
+                        </span>
+                      </div>
+                      <input
+                        id="drive_folder_id_credentials"
+                        name="drive_folder_id_credentials"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        value={form.drive_folder_id}
+                        onChange={(e) => set("drive_folder_id", extractDriveFolderId(e.target.value))}
+                        placeholder="Paste folder link or ID (e.g. 1A2b3C4d5E6f7G...)"
+                      />
+                      <div style={{
+                        marginTop: 8,
+                        padding: "10px 12px",
+                        background: "rgba(255, 255, 255, 0.03)",
+                        borderRadius: 6,
+                        border: "1px solid var(--border-subtle)",
+                        fontSize: 12,
+                      }}>
+                        <div style={{ color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Share this Drive folder with your Google Service Account email (give <b>Viewer</b> access):
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          <code style={{ fontSize: 11.5, color: "var(--accent-light)", wordBreak: "break-all", fontFamily: "var(--font-mono, monospace)" }}>
+                            {saEmail || "reel-ledger@reel-ledger-505014.iam.gserviceaccount.com"}
+                          </code>
+                          <button
+                            type="button"
+                            className="btn ghost small"
+                            style={{ padding: "2px 8px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                            onClick={copySaEmail}
+                          >
+                            {copiedSaEmail ? <CheckCheck size={12} style={{ color: "#34d399" }} /> : <Copy size={12} />}
+                            <span>{copiedSaEmail ? "Copied" : "Copy"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {formTab === "schedule" && (
+                  <div>
+                    <div className="field">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>
+                          <GoogleDriveIcon size={16} />
+                          <span>Google Drive Asset Folder</span>
+                        </label>
+                        <span className="hint" style={{ fontSize: 11, color: "var(--accent-light)" }}>
+                          Accepts full link or ID
+                        </span>
+                      </div>
+                      <input
+                        id="drive_folder_id_schedule"
+                        name="drive_folder_id_schedule"
+                        autoComplete="off"
+                        data-lpignore="true"
+                        data-1p-ignore="true"
+                        value={form.drive_folder_id}
+                        onChange={(e) => set("drive_folder_id", extractDriveFolderId(e.target.value))}
+                        placeholder="Paste folder link or ID (e.g. 1A2b3C4d5E6f7G...)"
+                      />
+                      <div style={{
+                        marginTop: 8,
+                        padding: "10px 12px",
+                        background: "rgba(255, 255, 255, 0.03)",
+                        borderRadius: 6,
+                        border: "1px solid var(--border-subtle)",
+                        fontSize: 12,
+                      }}>
+                        <div style={{ color: "var(--text-secondary)", marginBottom: 4 }}>
+                          Share this Drive folder with your Google Service Account email (give <b>Viewer</b> access):
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          <code style={{ fontSize: 11.5, color: "var(--accent-light)", wordBreak: "break-all", fontFamily: "var(--font-mono, monospace)" }}>
+                            {saEmail || "reel-ledger@reel-ledger-505014.iam.gserviceaccount.com"}
+                          </code>
+                          <button
+                            type="button"
+                            className="btn ghost small"
+                            style={{ padding: "2px 8px", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 4 }}
+                            onClick={copySaEmail}
+                          >
+                            {copiedSaEmail ? <CheckCheck size={12} style={{ color: "#34d399" }} /> : <Copy size={12} />}
+                            <span>{copiedSaEmail ? "Copied" : "Copy"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="field">
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Workspace UTC Offset (hours)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={form.utc_offset_hours}
+                        onChange={(e) => set("utc_offset_hours", e.target.value)}
+                      />
+                      <div className="hint">e.g. +5.5 for IST (India), -5 for EST (US East), or 0 for UTC. Used to render schedule times locally.</div>
+                    </div>
+                    <div className="field">
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Distribution Strategy</label>
+                      <select value={form.schedule_mode} onChange={(e) => set("schedule_mode", e.target.value)}>
+                        <option value="spread">Spread across day (automatic interval spacing)</option>
+                        <option value="fixed">Fixed daily post times</option>
+                      </select>
+                    </div>
+                    {form.schedule_mode === "spread" ? (
+                      <div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                          <div className="field" style={{ margin: 0 }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Start Hour (0–23)</label>
+                            <input type="number" min="0" max="23" value={form.spread_start_hour} onChange={(e) => set("spread_start_hour", e.target.value)} />
+                          </div>
+                          <div className="field" style={{ margin: 0 }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>End Hour (0–24)</label>
+                            <input type="number" min="1" max="24" value={form.spread_end_hour} onChange={(e) => set("spread_end_hour", e.target.value)} />
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                          <button
+                            type="button"
+                            className="btn ghost small"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                            onClick={() => { set("spread_start_hour", 0); set("spread_end_hour", 24); }}
+                          >
+                            <Clock size={12} />
+                            <span>24/7 Continuous (00:00 – 24:00)</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost small"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                            onClick={() => { set("spread_start_hour", 9); set("spread_end_hour", 22); }}
+                          >
+                            <Sun size={12} />
+                            <span>Daytime Peak (09:00 – 22:00)</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="field">
+                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Fixed Times (comma-separated, e.g. 09:00, 13:00, 18:00)</label>
+                        <input value={form.fixed_times} onChange={(e) => set("fixed_times", e.target.value)} placeholder="09:00, 13:00, 18:00" />
+                      </div>
+                    )}
+                    <div className="field" style={{ marginTop: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <label style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Target Posts per Day</label>
+                        <span style={{ fontSize: 11, color: "var(--accent-light)", fontWeight: 600 }}>Unrestricted</span>
+                      </div>
+                      <input type="number" min="1" max="200" value={form.per_run} onChange={(e) => set("per_run", e.target.value)} />
+                      <div className="hint">
+                        The scheduling engine calculates safe post intervals across your operating window to ensure optimal pacing.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {formTab === "captions" && (
+                  <div>
+                    <div className="field">
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Default Caption Footer (Optional)</label>
+                      <input value={form.caption_footer} onChange={(e) => set("caption_footer", e.target.value)} placeholder="e.g. Follow for daily stories · Link in bio" />
+                      <div className="hint">Appended to the end of every post caption for this page.</div>
+                    </div>
+                    <div className="field">
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Default Hashtags (comma-separated)</label>
+                      <input value={form.extra_hashtags} onChange={(e) => set("extra_hashtags", e.target.value)} placeholder="#spotlight, #creators, #highlight" />
+                      <div className="hint">Included on every post in addition to item-specific hashtags.</div>
+                    </div>
+                    <div className="field">
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Rotating Hashtag Pool (Optional)</label>
+                      <input
+                        value={poolInput}
+                        onChange={(e) => setPoolInput(e.target.value)}
+                        onKeyDown={addPoolTag}
+                        placeholder="Type a hashtag and press Enter (e.g. #trending)"
+                      />
+                      <div className="hint">
+                        The scheduler rotates tags from this pool with each post to expand audience reach while avoiding repetitive tag spam.
+                      </div>
+                      {form.hashtag_pool.length > 0 && (
+                        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {form.hashtag_pool.map((t) => (
+                            <span key={t} className="tag removable">
+                              {t}
+                              <button type="button" onClick={() => removePoolTag(t)} aria-label={`Remove ${t}`}>×</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {formTab === "autopilot" && (
+                  <div>
+                    {/* Master Automation Switch */}
+                    <div
+                      style={{
+                        background: profileForm.automation_enabled ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
+                        border: `1px solid ${profileForm.automation_enabled ? "rgba(16, 185, 129, 0.25)" : "rgba(239, 68, 68, 0.25)"}`,
+                        borderRadius: 8,
+                        padding: "12px 16px",
+                        marginBottom: 16,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: profileForm.automation_enabled ? "#34d399" : "#fca5a5" }}>
+                          Automated Content Dispatch: {profileForm.automation_enabled ? "ACTIVE (ON)" : "PAUSED (OFF)"}
+                        </div>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                          Automatically ingests media from Drive, formats captions, and dispatches content according to schedule.
+                        </div>
+                      </div>
+                      <label className="switch" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.automation_enabled}
+                          onChange={(e) => updateProfileField("automation_enabled", e.target.checked)}
+                        />
                       </label>
+                    </div>
+
+                    {/* Independent Tri-Mode Controls */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                        <span>Content Channels & Daily Limits</span>
+                        <span className="hint" style={{ fontSize: 11, fontWeight: 400 }}>Fair-Share Interleaving</span>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                        {/* Video / Reel */}
+                        <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#93c5fd", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <Video size={13} /> Video / Reel
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={profileForm.video_enabled}
+                              onChange={(e) => updateProfileField("video_enabled", e.target.checked)}
+                            />
+                          </div>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)" }}>Posts / Day</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="50"
+                            disabled={!profileForm.video_enabled}
+                            value={profileForm.daily_video_limit}
+                            onChange={(e) => updateProfileField("daily_video_limit", e.target.value)}
+                            style={{ width: "100%", marginTop: 4 }}
+                          />
+                        </div>
+
+                        {/* Photo */}
+                        <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#c084fc", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <Camera size={13} /> Photo / Image
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={profileForm.photo_enabled}
+                              onChange={(e) => updateProfileField("photo_enabled", e.target.checked)}
+                            />
+                          </div>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)" }}>Posts / Day</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="50"
+                            disabled={!profileForm.photo_enabled}
+                            value={profileForm.daily_photo_limit}
+                            onChange={(e) => updateProfileField("daily_photo_limit", e.target.value)}
+                            style={{ width: "100%", marginTop: 4 }}
+                          />
+                        </div>
+
+                        {/* Text */}
+                        <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#34d399", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                              <FileText size={13} /> Text / Status
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={profileForm.text_enabled}
+                              onChange={(e) => updateProfileField("text_enabled", e.target.checked)}
+                            />
+                          </div>
+                          <label style={{ fontSize: 11, color: "var(--text-muted)" }}>Posts / Day</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="50"
+                            disabled={!profileForm.text_enabled}
+                            value={profileForm.daily_text_limit}
+                            onChange={(e) => updateProfileField("daily_text_limit", e.target.value)}
+                            style={{ width: "100%", marginTop: 4 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Window & Spacing */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Window Start (Hour)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="23"
+                          value={profileForm.posting_window_start}
+                          onChange={(e) => updateProfileField("posting_window_start", e.target.value)}
+                        />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Window End (Hour)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="24"
+                          value={profileForm.posting_window_end}
+                          onChange={(e) => updateProfileField("posting_window_end", e.target.value)}
+                        />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Min Spacing (Minutes)</label>
+                        <input
+                          type="number"
+                          min="10"
+                          max="180"
+                          value={profileForm.min_spacing_minutes}
+                          onChange={(e) => updateProfileField("min_spacing_minutes", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Content Source Selection */}
+                    <div className="field" style={{ marginBottom: 16 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>Content Source</label>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 4 }}>
+                        {["drive", "generated", "both"].map((src) => (
+                          <button
+                            key={src}
+                            type="button"
+                            className="btn btn-sm"
+                            style={{
+                              background: profileForm.content_source === src ? "var(--bg-card)" : "var(--bg-input)",
+                              color: profileForm.content_source === src ? "var(--accent-light)" : "var(--text-muted)",
+                              border: `1px solid ${profileForm.content_source === src ? "var(--accent)" : "var(--border-subtle)"}`,
+                              fontWeight: 600,
+                              justifyContent: "center"
+                            }}
+                            onClick={() => updateProfileField("content_source", src)}
+                          >
+                            {src === "drive" && "Google Drive"}
+                            {src === "generated" && "Content Generator"}
+                            {src === "both" && "Hybrid (Drive + AI)"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Operational Policy Toggles */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.ai_captioning}
+                          onChange={(e) => updateProfileField("ai_captioning", e.target.checked)}
+                        />
+                        <span>AI Caption & Hook Generator</span>
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.hashtag_rotation}
+                          onChange={(e) => updateProfileField("hashtag_rotation", e.target.checked)}
+                        />
+                        <span>Hashtag Pool Rotation</span>
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.duplicate_protection}
+                          onChange={(e) => updateProfileField("duplicate_protection", e.target.checked)}
+                        />
+                        <span>Duplicate Protection & Dedup Ledger</span>
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.smart_scheduling}
+                          onChange={(e) => updateProfileField("smart_scheduling", e.target.checked)}
+                        />
+                        <span>Smart Fair-Share Interleaving</span>
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.auto_retry}
+                          onChange={(e) => updateProfileField("auto_retry", e.target.checked)}
+                        />
+                        <span>Automatic Exponential Retry</span>
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={profileForm.analytics_sync}
+                          onChange={(e) => updateProfileField("analytics_sync", e.target.checked)}
+                        />
+                        <span>Post-Publish Analytics Sync</span>
+                      </label>
+                    </div>
+
+                    {/* Profile Actions & Dry-Run Preview */}
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
                       <button
                         type="button"
                         className="btn btn-secondary btn-sm"
-                        style={{ fontSize: 11, padding: "3px 8px" }}
-                        disabled={tokenTesting || (!form.fb_access_token && !hasExistingToken)}
-                        onClick={testTokenLive}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+                        onClick={loadPreview}
+                        disabled={loadingPreview || !editingPageId}
                       >
-                        {tokenTesting ? "Testing with Meta…" : "⚡ Test Token Live"}
+                        <Clock size={12} />
+                        <span>{loadingPreview ? "Calculating Timeline…" : "Preview Live Schedule (Dry-Run)"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={handleSaveProfile}
+                        disabled={savingProfile || !editingPageId}
+                        style={{ background: "#10b981", borderColor: "#10b981" }}
+                      >
+                        {savingProfile ? "Saving & Rebalancing…" : "Save Autopilot Profile"}
                       </button>
                     </div>
-                    <input
-                      type="password"
-                      value={form.fb_access_token}
-                      onChange={(e) => { set("fb_access_token", e.target.value); setTokenTestResult(null); }}
-                      placeholder={hasExistingToken ? "•••••••••••••••• (Leave blank to keep saved token, or paste to replace)" : "EAAB..."}
-                    />
-                    {tokenTestResult && (
-                      <div style={{
-                        marginTop: 8,
-                        padding: "8px 12px",
-                        borderRadius: 6,
-                        fontSize: 12,
-                        background: tokenTestResult.valid ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
-                        color: tokenTestResult.valid ? "#34d399" : "#fca5a5",
-                        border: `1px solid ${tokenTestResult.valid ? "rgba(16, 185, 129, 0.25)" : "rgba(239, 68, 68, 0.25)"}`,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}>
-                        <span>{tokenTestResult.valid ? "✓" : "✗"}</span>
-                        <span>
-                          {tokenTestResult.valid
-                            ? `Valid Token for "${tokenTestResult.page_name}" (ID: ${tokenTestResult.page_id})`
-                            : `Token Invalid: ${tokenTestResult.error}`}
-                        </span>
+
+                    {profileMsg && (
+                      <div className={`banner ${profileMsg.startsWith("✓") ? "" : "err"}`} style={{ fontSize: 12, padding: "8px 12px", marginBottom: 12 }}>
+                        {profileMsg}
                       </div>
                     )}
-                    <div className="hint" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
-                      <span>
-                        {hasExistingToken && !form.fb_access_token
-                          ? "✓ Current token is safely encrypted in database. Only paste here if updating."
-                          : "Stored encrypted server-side; never exposed in public payloads."}
-                      </span>
-                      <span
-                        style={{ color: "var(--accent-light)", cursor: "pointer", textDecoration: "underline" }}
-                        onClick={() => setShowGuideModal(true)}
-                      >
-                        Never-expiring token setup guide →
-                      </span>
-                    </div>
-                  </div>
-                  <div className="field">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <GoogleDriveIcon size={15} />
-                        <span>Google Drive Folder ID or Share Link</span>
-                      </label>
-                      <span className="hint" style={{ fontSize: 11, color: "var(--accent-light)" }}>
-                        Auto-extracts Folder ID
-                      </span>
-                    </div>
-                    <input
-                      value={form.drive_folder_id}
-                      onChange={(e) => set("drive_folder_id", extractDriveFolderId(e.target.value))}
-                      placeholder="e.g. 1A2b3C4d5E6f7G... or paste full drive.google.com link"
-                    />
-                    <div className="hint">
-                      Share this Drive folder with your Google Service Account email with Viewer access.
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {formTab === "schedule" && (
-                <div>
-                  <div className="field">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <GoogleDriveIcon size={15} />
-                        <span>Google Drive Folder ID</span>
-                      </label>
-                      <span className="hint" style={{ fontSize: 11, color: "var(--accent-light)" }}>
-                        Auto-extracts Folder ID
-                      </span>
-                    </div>
-                    <input
-                      value={form.drive_folder_id}
-                      onChange={(e) => set("drive_folder_id", extractDriveFolderId(e.target.value))}
-                      placeholder="e.g. 1A2b3C4d5E6f7G... or paste full folder URL"
-                    />
-                    <div className="hint">Share this Drive folder with your Google Service Account email with Viewer access.</div>
-                  </div>
-                  <div className="field">
-                    <label>Your Local UTC Offset (hours)</label>
-                    <input type="number" step="0.5" value={form.utc_offset_hours} onChange={(e) => set("utc_offset_hours", e.target.value)} />
-                    <div className="hint">Set to 5.5 for IST (India), -5 for EST (US East), or 0 for UTC. Used to display times locally.</div>
-                  </div>
-                  <div className="field">
-                    <label>Schedule Mode</label>
-                    <select value={form.schedule_mode} onChange={(e) => set("schedule_mode", e.target.value)}>
-                      <option value="spread">Spread across day (auto intervals)</option>
-                      <option value="fixed">Fixed daily post times</option>
-                    </select>
-                  </div>
-                  {form.schedule_mode === "spread" ? (
-                    <div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        <div className="field" style={{ margin: 0 }}>
-                          <label>Start Hour (0–23)</label>
-                          <input type="number" min="0" max="23" value={form.spread_start_hour} onChange={(e) => set("spread_start_hour", e.target.value)} />
-                        </div>
-                        <div className="field" style={{ margin: 0 }}>
-                          <label>End Hour (0–24)</label>
-                          <input type="number" min="1" max="24" value={form.spread_end_hour} onChange={(e) => set("spread_end_hour", e.target.value)} />
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        <button
-                          type="button"
-                          className="btn ghost small"
-                          onClick={() => { set("spread_start_hour", 0); set("spread_end_hour", 24); }}
-                        >
-                          ⚡ 24/7 Round-the-Clock (0:00 - 24:00)
-                        </button>
-                        <button
-                          type="button"
-                          className="btn ghost small"
-                          onClick={() => { set("spread_start_hour", 9); set("spread_end_hour", 22); }}
-                        >
-                          ☀️ Daytime Peak (9:00 - 22:00)
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="field">
-                      <label>Fixed Times (comma-separated, e.g. 09:00, 13:00, 18:00)</label>
-                      <input value={form.fixed_times} onChange={(e) => set("fixed_times", e.target.value)} placeholder="09:00, 13:00, 18:00" />
-                    </div>
-                  )}
-                  <div className="field" style={{ marginTop: 14 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <label style={{ margin: 0 }}>Posts per Day (No Upper Limit)</label>
-                      <span style={{ fontSize: 11, color: "var(--accent-light)", fontWeight: 600 }}>UNRESTRICTED</span>
-                    </div>
-                    <input type="number" min="1" max="200" value={form.per_run} onChange={(e) => set("per_run", e.target.value)} />
-                    <div className="hint">
-                      Zero posting limitations across all pages. Post anytime around the clock (e.g. 6, 12, 24, 48+ posts/day).
-                      The collision engine automatically preserves safe intervals between Reels and Images.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {formTab === "captions" && (
-                <div>
-                  <div className="field">
-                    <label>Caption Footer (optional)</label>
-                    <input value={form.caption_footer} onChange={(e) => set("caption_footer", e.target.value)} placeholder="e.g. Follow @page for daily clips!" />
-                  </div>
-                  <div className="field">
-                    <label>Extra Default Hashtags (comma-separated)</label>
-                    <input value={form.extra_hashtags} onChange={(e) => set("extra_hashtags", e.target.value)} placeholder="#reels, #viral, #trending" />
-                  </div>
-                  <div className="field">
-                    <label>Hashtag Pool (optional)</label>
-                    <input
-                      value={poolInput}
-                      onChange={(e) => setPoolInput(e.target.value)}
-                      onKeyDown={addPoolTag}
-                      placeholder="Type a hashtag and press Enter"
-                    />
-                    <div className="hint">
-                      Reel Ledger will randomly rotate up to 50 of these with each reel's own hashtags to expand discovery.
-                    </div>
-                    {form.hashtag_pool.length > 0 && (
-                      <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 4 }}>
-                        {form.hashtag_pool.map((t) => (
-                          <span key={t} className="tag removable">
-                            {t}
-                            <button type="button" onClick={() => removePoolTag(t)} aria-label={`Remove ${t}`}>×</button>
+                    {/* Dry-run schedule timeline rendering */}
+                    {previewData && (
+                      <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
+                            Dry-Run Interleaved Schedule ({previewData.total_slots} slots projected)
                           </span>
-                        ))}
+                          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                            Zero published content modified · Safe Dynamic Rebalance
+                          </span>
+                        </div>
+                        <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                          <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}>
+                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Time</th>
+                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
+                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Content Asset</th>
+                                <th style={{ textAlign: "left", padding: "4px 6px" }}>Source</th>
+                                <th style={{ textAlign: "right", padding: "4px 6px" }}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {previewData.timeline?.map((slot, sIdx) => (
+                                <tr key={sIdx} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                                  <td style={{ padding: "6px", fontFamily: "var(--font-mono, monospace)" }}>{slot.time}</td>
+                                  <td style={{ padding: "6px" }}>
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        fontWeight: 700,
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                        background:
+                                          slot.content_type === "VIDEO" ? "rgba(59, 130, 246, 0.15)" :
+                                          slot.content_type === "PHOTO" ? "rgba(168, 85, 247, 0.15)" : "rgba(16, 185, 129, 0.15)",
+                                        color:
+                                          slot.content_type === "VIDEO" ? "#60a5fa" :
+                                          slot.content_type === "PHOTO" ? "#c084fc" : "#34d399",
+                                      }}
+                                    >
+                                      {slot.content_type}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "6px", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {slot.content_title}
+                                  </td>
+                                  <td style={{ padding: "6px", color: "var(--text-muted)" }}>{slot.source}</td>
+                                  <td style={{ padding: "6px", textAlign: "right" }}>
+                                    <span style={{ color: slot.status === "ready" ? "#34d399" : "#fbbf24", fontSize: 11, display: "inline-flex", alignItems: "center", gap: 3 }}>
+                                      {slot.status === "ready" ? <Check size={11} /> : null}
+                                      {slot.status === "ready" ? "Ready" : "Scheduled"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              {formTab === "autopilot" && (
-                <div>
-                  {/* Master Automation Switch */}
-                  <div
-                    style={{
-                      background: profileForm.automation_enabled ? "rgba(16, 185, 129, 0.08)" : "rgba(239, 68, 68, 0.08)",
-                      border: `1px solid ${profileForm.automation_enabled ? "rgba(16, 185, 129, 0.25)" : "rgba(239, 68, 68, 0.25)"}`,
-                      borderRadius: 8,
-                      padding: "12px 16px",
-                      marginBottom: 16,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center"
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: profileForm.automation_enabled ? "#34d399" : "#fca5a5" }}>
-                        Autonomous Content Operating System: {profileForm.automation_enabled ? "ACTIVE (ON)" : "PAUSED (OFF)"}
-                      </div>
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
-                        Continuously ingests, validates, captions, interleaves and dispatches content with zero manual intervention.
-                      </div>
-                    </div>
-                    <label className="switch" style={{ display: "inline-flex", alignItems: "center", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.automation_enabled}
-                        onChange={(e) => updateProfileField("automation_enabled", e.target.checked)}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Independent Tri-Mode Controls */}
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                      <span>Independent Content Channels & Daily Limits</span>
-                      <span className="hint" style={{ fontSize: 11, fontWeight: 400 }}>Balanced Fair-Share Interleaving</span>
-                    </div>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-                      {/* Video / Reel */}
-                      <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#93c5fd" }}>🎥 Video / Reel</span>
-                          <input
-                            type="checkbox"
-                            checked={profileForm.video_enabled}
-                            onChange={(e) => updateProfileField("video_enabled", e.target.checked)}
-                          />
-                        </div>
-                        <label style={{ fontSize: 11, color: "var(--text-muted)" }}>Posts / Day</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="50"
-                          disabled={!profileForm.video_enabled}
-                          value={profileForm.daily_video_limit}
-                          onChange={(e) => updateProfileField("daily_video_limit", e.target.value)}
-                          style={{ width: "100%", marginTop: 4 }}
-                        />
-                      </div>
-
-                      {/* Photo */}
-                      <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#c084fc" }}>📸 Photo / Image</span>
-                          <input
-                            type="checkbox"
-                            checked={profileForm.photo_enabled}
-                            onChange={(e) => updateProfileField("photo_enabled", e.target.checked)}
-                          />
-                        </div>
-                        <label style={{ fontSize: 11, color: "var(--text-muted)" }}>Posts / Day</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="50"
-                          disabled={!profileForm.photo_enabled}
-                          value={profileForm.daily_photo_limit}
-                          onChange={(e) => updateProfileField("daily_photo_limit", e.target.value)}
-                          style={{ width: "100%", marginTop: 4 }}
-                        />
-                      </div>
-
-                      {/* Text */}
-                      <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: "#34d399" }}>📝 Text / Status</span>
-                          <input
-                            type="checkbox"
-                            checked={profileForm.text_enabled}
-                            onChange={(e) => updateProfileField("text_enabled", e.target.checked)}
-                          />
-                        </div>
-                        <label style={{ fontSize: 11, color: "var(--text-muted)" }}>Posts / Day</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="50"
-                          disabled={!profileForm.text_enabled}
-                          value={profileForm.daily_text_limit}
-                          onChange={(e) => updateProfileField("daily_text_limit", e.target.value)}
-                          style={{ width: "100%", marginTop: 4 }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Window & Spacing */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
-                    <div className="field" style={{ margin: 0 }}>
-                      <label>Window Start (Hour)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="23"
-                        value={profileForm.posting_window_start}
-                        onChange={(e) => updateProfileField("posting_window_start", e.target.value)}
-                      />
-                    </div>
-                    <div className="field" style={{ margin: 0 }}>
-                      <label>Window End (Hour)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="24"
-                        value={profileForm.posting_window_end}
-                        onChange={(e) => updateProfileField("posting_window_end", e.target.value)}
-                      />
-                    </div>
-                    <div className="field" style={{ margin: 0 }}>
-                      <label>Min Spacing (Minutes)</label>
-                      <input
-                        type="number"
-                        min="10"
-                        max="180"
-                        value={profileForm.min_spacing_minutes}
-                        onChange={(e) => updateProfileField("min_spacing_minutes", e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Content Source Selection */}
-                  <div className="field" style={{ marginBottom: 16 }}>
-                    <label>Content Source</label>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 4 }}>
-                      {["drive", "generated", "both"].map((src) => (
-                        <button
-                          key={src}
-                          type="button"
-                          className="btn btn-sm"
-                          style={{
-                            background: profileForm.content_source === src ? "var(--bg-card)" : "var(--bg-input)",
-                            color: profileForm.content_source === src ? "var(--accent)" : "var(--text-muted)",
-                            border: `1px solid ${profileForm.content_source === src ? "var(--accent)" : "var(--border-subtle)"}`,
-                            fontWeight: 600,
-                            justifyContent: "center"
-                          }}
-                          onClick={() => updateProfileField("content_source", src)}
-                        >
-                          {src === "drive" && "Google Drive"}
-                          {src === "generated" && "Content Machine (AI)"}
-                          {src === "both" && "Hybrid (Drive + AI)"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Operational Policy Toggles */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.ai_captioning}
-                        onChange={(e) => updateProfileField("ai_captioning", e.target.checked)}
-                      />
-                      <span>AI Caption & Hook Generator</span>
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.hashtag_rotation}
-                        onChange={(e) => updateProfileField("hashtag_rotation", e.target.checked)}
-                      />
-                      <span>Hashtag Pool Rotation</span>
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.duplicate_protection}
-                        onChange={(e) => updateProfileField("duplicate_protection", e.target.checked)}
-                      />
-                      <span>Duplicate Protection & Dedup Ledger</span>
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.smart_scheduling}
-                        onChange={(e) => updateProfileField("smart_scheduling", e.target.checked)}
-                      />
-                      <span>Smart Fair-Share Interleaving</span>
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.auto_retry}
-                        onChange={(e) => updateProfileField("auto_retry", e.target.checked)}
-                      />
-                      <span>Autonomous Exponential Retry</span>
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={profileForm.analytics_sync}
-                        onChange={(e) => updateProfileField("analytics_sync", e.target.checked)}
-                      />
-                      <span>Post-Publish Analytics Sync</span>
-                    </label>
-                  </div>
-
-                  {/* Profile Actions & Dry-Run Preview */}
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={loadPreview}
-                      disabled={loadingPreview || !editingPageId}
-                    >
-                      {loadingPreview ? "Calculating Timeline…" : "⚡ Preview Live Schedule (Dry-Run)"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={handleSaveProfile}
-                      disabled={savingProfile || !editingPageId}
-                      style={{ background: "#10b981", borderColor: "#10b981" }}
-                    >
-                      {savingProfile ? "Saving & Rebalancing…" : "Save Autopilot Profile"}
-                    </button>
-                  </div>
-
-                  {profileMsg && (
-                    <div className={`banner ${profileMsg.startsWith("✓") ? "" : "err"}`} style={{ fontSize: 12, padding: "8px 12px", marginBottom: 12 }}>
-                      {profileMsg}
-                    </div>
-                  )}
-
-                  {/* Dry-run schedule timeline rendering */}
-                  {previewData && (
-                    <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: 12 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-                          Dry-Run Interleaved Schedule ({previewData.total_slots} slots projected)
-                        </span>
-                        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                          Zero published content modified · Safe Dynamic Rebalance
-                        </span>
-                      </div>
-                      <div style={{ maxHeight: 220, overflowY: "auto" }}>
-                        <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-                          <thead>
-                            <tr style={{ color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}>
-                              <th style={{ textAlign: "left", padding: "4px 6px" }}>Time</th>
-                              <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
-                              <th style={{ textAlign: "left", padding: "4px 6px" }}>Content Asset</th>
-                              <th style={{ textAlign: "left", padding: "4px 6px" }}>Source</th>
-                              <th style={{ textAlign: "right", padding: "4px 6px" }}>Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {previewData.timeline?.map((slot, sIdx) => (
-                              <tr key={sIdx} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                                <td style={{ padding: "6px", fontFamily: "var(--util)" }}>{slot.time}</td>
-                                <td style={{ padding: "6px" }}>
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontWeight: 700,
-                                      padding: "2px 6px",
-                                      borderRadius: 4,
-                                      background:
-                                        slot.content_type === "VIDEO" ? "rgba(59, 130, 246, 0.15)" :
-                                        slot.content_type === "PHOTO" ? "rgba(168, 85, 247, 0.15)" : "rgba(16, 185, 129, 0.15)",
-                                      color:
-                                        slot.content_type === "VIDEO" ? "#60a5fa" :
-                                        slot.content_type === "PHOTO" ? "#c084fc" : "#34d399",
-                                    }}
-                                  >
-                                    {slot.content_type}
-                                  </span>
-                                </td>
-                                <td style={{ padding: "6px", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {slot.content_title}
-                                </td>
-                                <td style={{ padding: "6px", color: "var(--text-muted)" }}>{slot.source}</td>
-                                <td style={{ padding: "6px", textAlign: "right" }}>
-                                  <span style={{ color: slot.status === "ready" ? "#34d399" : "#fbbf24", fontSize: 11 }}>
-                                    {slot.status === "ready" ? "✓ Ready" : "⚡ AI Auto"}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {msg && <div className="banner err" style={{ marginTop: 14 }}>{msg}</div>}
-
-            {/* Modal Actions Footer */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingTop: 16,
-                marginTop: 16,
-                borderTop: "1px solid var(--border-subtle)",
-              }}
-            >
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                {(!form.name || !form.fb_page_id || (!form.fb_access_token && !hasExistingToken)) ? (
-                  <span style={{ color: "#f87171" }}>* Required: Page Name, Page ID & Token</span>
-                ) : (
-                  <span style={{ color: "#34d399" }}>● All required fields valid</span>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={busy || !form.name || !form.fb_page_id || (!form.fb_access_token && !hasExistingToken)}
-                  onClick={save}
-                >
-                  {busy ? "Saving…" : (editingPageId ? "Update Page" : "Save Page")}
-                </button>
+
+              {msg && <div className="banner err" style={{ marginTop: 14 }}>{msg}</div>}
+
+              {/* Modal Actions Footer */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingTop: 16,
+                  marginTop: 16,
+                  borderTop: "1px solid var(--border-subtle)",
+                }}
+              >
+                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {(!form.name || !form.fb_page_id || (!form.fb_access_token && !hasExistingToken)) ? (
+                    <span style={{ color: "#f87171" }}>* Required: Page Name, Page ID, and Access Token</span>
+                  ) : (
+                    <span style={{ color: "#34d399", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <Check size={13} /> All required credentials configured
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={busy || !form.name || !form.fb_page_id || (!form.fb_access_token && !hasExistingToken)}
+                  >
+                    {busy ? "Saving…" : (editingPageId ? "Update Page" : "Save Page")}
+                  </button>
+                </div>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       )}

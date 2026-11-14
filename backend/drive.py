@@ -63,6 +63,15 @@ def _credentials():
     )
 
 
+def get_service_account_email():
+    """Retrieve the client email configured for the Google Service Account."""
+    try:
+        creds = _credentials()
+        return getattr(creds, "service_account_email", None)
+    except Exception:
+        return None
+
+
 def _get_auth_token():
     creds = _credentials()
     if not creds.valid:

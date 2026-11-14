@@ -55,8 +55,15 @@ Auth: set RUN_TOKEN in the environment; /api/run requires header
 import datetime as dt
 import os
 import re
+import sys
 import threading
 import traceback
+from pathlib import Path
+
+# Ensure backend directory is in sys.path
+_backend_dir = str(Path(__file__).resolve().parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 from fastapi import FastAPI, HTTPException, Header, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -238,6 +245,13 @@ def readiness_check():
                 "timestamp": dt.datetime.now(dt.timezone.utc).isoformat(),
             },
         )
+
+
+@app.get("/api/system/service-account")
+def get_service_account():
+    """Returns the email address of the active Google Service Account for easy sharing."""
+    email = drive.get_service_account_email()
+    return {"service_account_email": email}
 
 
 # ============================ PAGES ============================
