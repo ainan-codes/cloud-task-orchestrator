@@ -12,7 +12,10 @@ import sys
 import time
 import logging
 import subprocess
-from playwright.sync_api import sync_playwright
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    sync_playwright = None
 
 logger = logging.getLogger("flow_browser")
 
