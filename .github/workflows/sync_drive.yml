@@ -1,0 +1,165 @@
+name: Ingest Cloud Storage Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_id:
+        description: 'Resource ID to sync (leave blank to sync all active resources)'
+        required: false
+        default: ''
+
+env:
+  # Unbuffered output so prints interleave correctly with tracebacks in the
+  # Actions log, and native-crash tracebacks are printed instead of swallowed.
+  PYTHONUNBUFFERED: '1'
+  PYTHONFAULTHANDLER: '1'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          echo "=== Installed packages ==="
+          pip list
+
+      # Diagnostics only. Never fails the job and never prints a secret value —
+      # only whether it is set, its length, and non-sensitive shape info.
+      - name: Verify environment
+        id: verify
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -uo pipefail
+          echo "=== Python ==="
+          python -VV
+          echo
+          echo "=== Files in backend/ ==="
+          ls -la
+          echo
+          echo "=== Secret presence (values never printed) ==="
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          def report(name):
+              v = os.environ.get(name, "")
+              print(f"{name}: set={bool(v)} length={len(v)}")
+              return v
+
+          db = report("DATABASE_URL")
+          if db:
+              try:
+                  u = urlsplit(db)
+                  print(f"  scheme   : {u.scheme}")
+                  print(f"  host     : {u.hostname}")
+                  print(f"  port     : {u.port}")
+                  print(f"  user     : {u.username}")
+                  print(f"  database : {(u.path or '/').lstrip('/')}")
+                  print(f"  password : {'set' if u.password else 'MISSING'}")
+                  if u.port == 5432 and (u.hostname or '').startswith('db.'):
+                      print("  NOTE: this is the DIRECT connection (IPv6-only on Supabase).")
+                      print("        GitHub Actions runners are IPv4-only and cannot reach it.")
+                      print("        Use the pooler host (…pooler.supabase.com:6543) instead.")
+              except Exception as e:
+                  print(f"  could not parse DATABASE_URL: {type(e).__name__}: {e}")
+          else:
+              print("  ERROR: repository secret DATABASE_URL is empty or not defined.")
+
+          sa = report("GOOGLE_SERVICE_ACCOUNT_JSON")
+          if not sa or sa.strip() in ("", "{}"):
+              print("  ERROR: GOOGLE_SERVICE_ACCOUNT_JSON is empty or a bare '{}'.")
+          else:
+              import json
+              try:
+                  d = json.loads(sa)
+                  print(f"  json keys    : {sorted(d.keys())}")
+                  print(f"  type         : {d.get('type')}")
+                  print(f"  client_email : {d.get('client_email')}")
+                  print(f"  project_id   : {d.get('project_id')}")
+              except json.JSONDecodeError as e:
+                  print(f"  ERROR: not valid JSON: {e}")
+          PY
+          echo
+          echo "=== Module imports ==="
+          for m in psycopg db drive; do
+            python -c "import $m; print('  $m OK')" || echo "  $m FAILED"
+          done
+
+      # Isolates "can't reach the database" from "sync logic is broken".
+      - name: Test database connection
+        id: dbtest
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -uo pipefail
+          python - <<'PY'
+          import os, sys, traceback
+          try:
+              import psycopg
+              with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=15) as c:
+                  with c.cursor() as cur:
+                      cur.execute("select version()")
+                      print("Connected. Server:", cur.fetchone()[0])
+                      cur.execute("select count(*) from pages where is_active = true")
+                      print("Active pages:", cur.fetchone()[0])
+          except Exception as e:
+              print(f"DB CONNECTION FAILED: {type(e).__name__}: {e}")
+              traceback.print_exc()
+              sys.exit(1)
+          PY
+
+      - name: Run Drive sync
+        id: sync
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -uo pipefail
+          PAGE_ID="${{ github.event.inputs.page_id }}"
+          if [ -n "$PAGE_ID" ]; then
+            echo "Syncing page_id=$PAGE_ID"
+          else
+            echo "Syncing all active pages"
+          fi
+          echo "--- sync_runner.py output ---"
+          python -u sync_runner.py "$PAGE_ID"
+          rc=$?
+          echo "--- sync_runner.py exited with code $rc ---"
+          exit $rc
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          echo "::error::Drive sync failed. Checklist:"
+          echo "  1. Is the DATABASE_URL secret set to the POOLER url"
+          echo "     (postgres.<ref>@aws-0-<region>.pooler.supabase.com:6543/postgres)?"
+          echo "     The direct db.<ref>.supabase.co:5432 host is IPv6-only and"
+          echo "     unreachable from GitHub-hosted runners."
+          echo "  2. Is GOOGLE_SERVICE_ACCOUNT_JSON the full service-account JSON?"
+          echo "  3. Is each page's Drive folder shared with the service account's"
+          echo "     client_email (printed in the 'Verify environment' step)?"
+          echo "  4. Secret names are case-sensitive: DATABASE_URL, GOOGLE_SERVICE_ACCOUNT_JSON"
+          echo "Verify environment outcome : ${{ steps.verify.outcome }}"
+          echo "Database connection outcome: ${{ steps.dbtest.outcome }}"

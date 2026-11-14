@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reels_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - SNAPCHAT_CLIENT_ID=${SNAPCHAT_CLIENT_ID}
+      - SNAPCHAT_CLIENT_SECRET=${SNAPCHAT_CLIENT_SECRET}
+      - SNAPCHAT_REDIRECT_URI=${SNAPCHAT_REDIRECT_URI}
+      - SNAPCHAT_ENCRYPTION_KEY=${SNAPCHAT_ENCRYPTION_KEY}
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reels_worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - SNAPCHAT_CLIENT_ID=${SNAPCHAT_CLIENT_ID}
+      - SNAPCHAT_CLIENT_SECRET=${SNAPCHAT_CLIENT_SECRET}
+      - SNAPCHAT_REDIRECT_URI=${SNAPCHAT_REDIRECT_URI}
+      - SNAPCHAT_ENCRYPTION_KEY=${SNAPCHAT_ENCRYPTION_KEY}
+    command: ["python", "runner.py", "--continuous", "--interval", "900"]
