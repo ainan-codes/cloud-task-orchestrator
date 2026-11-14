@@ -24,9 +24,12 @@ PROFILES_DIR = os.path.join(BASE_DIR, "data", "flow_profiles")
 STAGING_RAW = os.path.join(BASE_DIR, "staging", "raw")
 STAGING_CLEAN = os.path.join(BASE_DIR, "staging", "clean")
 
-os.makedirs(PROFILES_DIR, exist_ok=True)
-os.makedirs(STAGING_RAW, exist_ok=True)
-os.makedirs(STAGING_CLEAN, exist_ok=True)
+try:
+    os.makedirs(PROFILES_DIR, exist_ok=True)
+    os.makedirs(STAGING_RAW, exist_ok=True)
+    os.makedirs(STAGING_CLEAN, exist_ok=True)
+except OSError:
+    pass
 
 FLOW_URL = os.environ.get("GOOGLE_FLOW_URL", "https://flow.google.com")
 

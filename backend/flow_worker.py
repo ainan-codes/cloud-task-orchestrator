@@ -26,8 +26,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STAGING_RAW = os.path.join(BASE_DIR, "staging", "raw")
 STAGING_CLEAN = os.path.join(BASE_DIR, "staging", "clean")
 
-os.makedirs(STAGING_RAW, exist_ok=True)
-os.makedirs(STAGING_CLEAN, exist_ok=True)
+try:
+    os.makedirs(STAGING_RAW, exist_ok=True)
+    os.makedirs(STAGING_CLEAN, exist_ok=True)
+except OSError:
+    pass
 
 
 def remove_watermark_crop(input_path: str, output_path: str, bottom_crop_px: int = 60) -> bool:

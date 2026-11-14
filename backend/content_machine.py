@@ -27,7 +27,14 @@ logger = logging.getLogger("content_machine")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STAGING_DIR = os.path.join(BASE_DIR, "staging", "generated")
-os.makedirs(STAGING_DIR, exist_ok=True)
+try:
+    os.makedirs(STAGING_DIR, exist_ok=True)
+except OSError:
+    STAGING_DIR = os.path.join("/tmp", "staging", "generated")
+    try:
+        os.makedirs(STAGING_DIR, exist_ok=True)
+    except OSError:
+        pass
 
 
 class ContentMachine:

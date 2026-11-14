@@ -14,13 +14,19 @@ import math
 import random
 import logging
 import requests
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+except ImportError:
+    Image = ImageDraw = ImageFont = ImageFilter = None
 
 logger = logging.getLogger("image_worker")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STAGING_CLEAN = os.path.join(BASE_DIR, "staging", "clean")
-os.makedirs(STAGING_CLEAN, exist_ok=True)
+try:
+    os.makedirs(STAGING_CLEAN, exist_ok=True)
+except OSError:
+    pass
 
 
 def generate_vertical_image_card(

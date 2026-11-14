@@ -47,7 +47,14 @@ studio_router = APIRouter(prefix="/api/studio", tags=["Universal Content Studio"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STAGING_DIR = os.path.join(BASE_DIR, "staging", "studio")
-os.makedirs(STAGING_DIR, exist_ok=True)
+try:
+    os.makedirs(STAGING_DIR, exist_ok=True)
+except OSError:
+    STAGING_DIR = os.path.join("/tmp", "staging", "studio")
+    try:
+        os.makedirs(STAGING_DIR, exist_ok=True)
+    except OSError:
+        pass
 
 # In-memory job tracker with thread safety
 STUDIO_JOBS: Dict[str, Dict[str, Any]] = {}
