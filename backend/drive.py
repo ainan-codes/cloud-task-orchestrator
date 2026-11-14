@@ -118,7 +118,7 @@ def _video_id_from_name(name):
     return None
 
 
-def clean_folder_id(raw):
+def _clean_single_folder_id(raw):
     if not raw:
         return ""
     raw = str(raw).strip()
@@ -134,9 +134,25 @@ def clean_folder_id(raw):
     return raw
 
 
+def clean_folder_id(raw):
+    """Clean a single Drive folder ID/URL or comma/newline-separated multiple folders."""
+    if not raw:
+        return ""
+    raw = str(raw).strip()
+    parts = [p.strip() for p in re.split(r"[\n\r,;]+", raw) if p.strip()]
+    if len(parts) > 1:
+        cleaned_list = []
+        for p in parts:
+            c = _clean_single_folder_id(p)
+            if c and c not in cleaned_list:
+                cleaned_list.append(c)
+        return ", ".join(cleaned_list)
+    return _clean_single_folder_id(raw)
+
+
 def _list_one_folder(folder_id, token):
     """Immediate children of one Drive folder, as {name: file_dict}."""
-    folder_id = clean_folder_id(folder_id)
+    folder_id = _clean_single_folder_id(folder_id)
     session = _get_thread_session(token)
     files = {}
     page_token = None
@@ -165,13 +181,19 @@ def _list_one_folder(folder_id, token):
 
 def list_folder(folder_id, progress_cb=None, known_captions=None):
     """
-    Recursively scans folder_id and all subfolders in parallel.
+    Recursively scans folder_id (supports single folder or multiple comma-separated folder IDs/URLs)
+    and all subfolders in parallel.
     Reuses known_captions if provided, and downloads any new sidecars concurrently.
     Returns (items, subfolders_scanned).
     """
     token = _get_auth_token()
     folder_files_map = {}
-    current_level = [(folder_id, "root")]
+    raw_fids = [f.strip() for f in re.split(r"[\n\r,;]+", str(folder_id or "")) if f.strip()]
+    cleaned_fids = [_clean_single_folder_id(f) for f in raw_fids if _clean_single_folder_id(f)]
+    if not cleaned_fids:
+        return [], 0
+
+    current_level = [(fid, f"root_{i+1}" if len(cleaned_fids) > 1 else "root") for i, fid in enumerate(cleaned_fids)]
     subfolders_scanned = 0
     known_captions = known_captions or {}
 

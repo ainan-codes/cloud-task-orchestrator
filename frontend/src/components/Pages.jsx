@@ -157,6 +157,17 @@ export default function Pages({
 
   function extractDriveFolderId(val) {
     if (!val) return "";
+    const parts = val.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      const ids = parts.map((p) => {
+        const folderMatch = p.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+        if (folderMatch) return folderMatch[1];
+        const idMatch = p.match(/id=([a-zA-Z0-9_-]+)/);
+        if (idMatch) return idMatch[1];
+        return p;
+      }).filter(Boolean);
+      return Array.from(new Set(ids)).join(", ");
+    }
     const trimmed = val.trim();
     const folderMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/);
     if (folderMatch) return folderMatch[1];
@@ -923,7 +934,7 @@ export default function Pages({
                           <span>Google Drive Asset Folder</span>
                         </label>
                         <span className="hint" style={{ fontSize: 11, color: "var(--accent-light)" }}>
-                          Accepts full link or ID
+                          Single or multiple links supported
                         </span>
                       </div>
                       <input
@@ -934,7 +945,7 @@ export default function Pages({
                         data-1p-ignore="true"
                         value={form.drive_folder_id}
                         onChange={(e) => set("drive_folder_id", extractDriveFolderId(e.target.value))}
-                        placeholder="Paste folder link or ID (e.g. 1A2b3C4d5E6f7G...)"
+                        placeholder="Paste folder link(s) or ID(s) — comma-separated for multiple folders"
                       />
                       <div style={{
                         marginTop: 8,
@@ -975,7 +986,7 @@ export default function Pages({
                           <span>Google Drive Asset Folder</span>
                         </label>
                         <span className="hint" style={{ fontSize: 11, color: "var(--accent-light)" }}>
-                          Accepts full link or ID
+                          Single or multiple links supported
                         </span>
                       </div>
                       <input
@@ -986,7 +997,7 @@ export default function Pages({
                         data-1p-ignore="true"
                         value={form.drive_folder_id}
                         onChange={(e) => set("drive_folder_id", extractDriveFolderId(e.target.value))}
-                        placeholder="Paste folder link or ID (e.g. 1A2b3C4d5E6f7G...)"
+                        placeholder="Paste folder link(s) or ID(s) — comma-separated for multiple folders"
                       />
                       <div style={{
                         marginTop: 8,
