@@ -95,13 +95,27 @@ def _service():
 
 
 def _video_id_from_name(name):
-    """Leading numeric id in a filename ("12345_clip.mp4" -> "12345"), used to
-    pair a media file with its .json sidecar when the two names differ after
-    that prefix. Restored verbatim from 73829dd^ — that commit replaced this
-    function with clean_folder_id but left both call sites below, so every
-    sync raised NameError as soon as it reached the sidecar-pairing pass."""
-    m = re.match(r"^(\d+)", name or "")
-    return m.group(1) if m else None
+    """Extract a unique numeric identifier from a filename.
+    Handles:
+      - Dates with IDs: 2026-10-21_1685969849201770_unknown.mp4 -> 1685969849201770
+      - Leading IDs: 12345_clip.mp4 -> 12345
+      - Embedded 8+ digit IDs: reel_9876543210_v2.mp4 -> 9876543210
+    """
+    if not name:
+        return None
+    # 1. Date prefix followed by unique numeric id: 2026-10-21_1685969849201770_...
+    m_date = re.match(r"^\d{4}[-_]\d{2}[-_]\d{2}[-_](\d+)", name)
+    if m_date:
+        return m_date.group(1)
+    # 2. Significant 8+ digit numeric identifier anywhere in stem
+    m_long = re.search(r"(\d{8,})", name)
+    if m_long:
+        return m_long.group(1)
+    # 3. Leading numeric id
+    m_lead = re.match(r"^(\d+)", name)
+    if m_lead:
+        return m_lead.group(1)
+    return None
 
 
 def clean_folder_id(raw):
@@ -187,12 +201,29 @@ def list_folder(folder_id, progress_cb=None, known_captions=None):
         txt_exact = {}
         json_id = {}
         txt_id = {}
+
+        # First pass: map all video stems and IDs in this folder
+        video_stems = set()
+        video_ids = set()
+        for name, f in files.items():
+            if f.get("mimeType") == FOLDER_MIME:
+                continue
+            lower = name.lower()
+            if lower.endswith((".mp4", ".mov", ".mkv", ".webm", ".avi")):
+                base_stem = re.sub(r"\.[^.]+$", "", name)
+                video_stems.add(base_stem.lower())
+                vid_id = _video_id_from_name(base_stem)
+                if vid_id:
+                    video_ids.add(vid_id)
+
+        # Second pass: catalog sidecar JSON and TXT metadata
         for name, f in files.items():
             lower = name.lower()
             if lower.endswith((".metadata.json", ".json")):
                 base = re.sub(r"\.metadata\.json$", "", name, flags=re.IGNORECASE)
                 base = re.sub(r"\.json$", "", base, flags=re.IGNORECASE)
                 json_exact[base] = f
+                json_exact[base.lower()] = f
                 vid_id = _video_id_from_name(base)
                 if vid_id:
                     json_id[vid_id] = f
@@ -200,36 +231,52 @@ def list_folder(folder_id, progress_cb=None, known_captions=None):
                 base = re.sub(r"\.caption\.txt$", "", name, flags=re.IGNORECASE)
                 base = re.sub(r"\.txt$", "", base, flags=re.IGNORECASE)
                 txt_exact[base] = f
+                txt_exact[base.lower()] = f
                 vid_id = _video_id_from_name(base)
                 if vid_id:
                     txt_id[vid_id] = f
 
+        # Third pass: classify media items, filtering out companion cover images
         for name, f in files.items():
             if f.get("mimeType") == FOLDER_MIME:
                 continue
             lower = name.lower()
-            if lower.endswith((".mp4", ".mov")):
+            base = re.sub(r"\.[^.]+$", "", name)
+            base_lower = base.lower()
+            vid_id = _video_id_from_name(name)
+
+            if lower.endswith((".mp4", ".mov", ".mkv", ".webm", ".avi")):
                 media_type = "reel"
             elif lower.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                # Check if this image is a thumbnail / cover reference for a video
+                is_cover = False
+                # If name ends with _cover, -cover, .cover, _thumb, -thumb, .thumb, _thumbnail, etc.
+                if re.search(r"[-_.](cover|thumb|thumbnail|preview|poster)$", base_lower):
+                    is_cover = True
+                # If name matches a video base stem directly (e.g. clip.jpg alongside clip.mp4)
+                elif base_lower in video_stems:
+                    is_cover = True
+                # If there are videos in this folder and the image ID matches a video ID
+                elif vid_id and vid_id in video_ids:
+                    is_cover = True
+
+                if is_cover:
+                    logger.info(f"Skipping video reference/cover image '{name}' from standalone photo ingest.")
+                    continue
                 media_type = "photo"
             else:
                 continue
 
-            base = re.sub(r"\.[^.]+$", "", name)
-            vid_id = _video_id_from_name(name)
             dfid = f["id"]
 
-            sidecar_json = None
-            if vid_id and vid_id in json_id:
+            # Exact match takes PRIORITY over partial ID match
+            sidecar_json = json_exact.get(base) or json_exact.get(base_lower)
+            if not sidecar_json and vid_id and vid_id in json_id:
                 sidecar_json = json_id[vid_id]
-            elif base in json_exact:
-                sidecar_json = json_exact[base]
 
-            sidecar_txt = None
-            if vid_id and vid_id in txt_id:
+            sidecar_txt = txt_exact.get(base) or txt_exact.get(base_lower)
+            if not sidecar_txt and vid_id and vid_id in txt_id:
                 sidecar_txt = txt_id[vid_id]
-            elif base in txt_exact:
-                sidecar_txt = txt_exact[base]
 
             if sidecar_json and (dfid not in known_captions):
                 sidecars_to_fetch[sidecar_json["id"]] = ("json", sidecar_json)
@@ -280,15 +327,28 @@ def list_folder(folder_id, progress_cb=None, known_captions=None):
             if sidecar_json and sidecar_json["id"] in sidecar_data:
                 meta = sidecar_data[sidecar_json["id"]][1] if isinstance(sidecar_data[sidecar_json["id"]], tuple) else sidecar_data[sidecar_json["id"]]
                 if isinstance(meta, dict):
-                    if not caption and meta.get("caption"):
-                        caption = meta.get("caption", "")
-                    hashtags = meta.get("hashtags", [])
-                    sound_title = meta.get("sound_title")
+                    if not caption:
+                        caption = meta.get("caption") or meta.get("description") or meta.get("text") or meta.get("title") or ""
+                        if not caption and "edge_media_to_caption" in meta:
+                            edges = meta.get("edge_media_to_caption", {}).get("edges", [])
+                            if edges and isinstance(edges, list) and len(edges) > 0:
+                                caption = edges[0].get("node", {}).get("text", "")
+                    if not hashtags:
+                        raw_tags = meta.get("hashtags") or meta.get("tags") or []
+                        if isinstance(raw_tags, list):
+                            hashtags = [t if str(t).startswith("#") else f"#{t}" for t in raw_tags if str(t).strip()]
+                        elif isinstance(raw_tags, str):
+                            hashtags = [t.strip() for t in raw_tags.split(",") if t.strip()]
+                    sound_title = meta.get("sound_title") or meta.get("music") or meta.get("track")
+
+        if not hashtags and caption:
+            hashtags = re.findall(r"#\w+", caption)
 
         if not caption and not hashtags:
+            matched_name = sidecar_json['name'] if sidecar_json else (sidecar_txt['name'] if sidecar_txt else 'None')
             logger.warning(
                 f"[drive sync warning] Media '{name}' has zero caption/hashtag data "
-                f"(sidecar match: {sidecar['name'] if sidecar else 'None'})"
+                f"(sidecar match: {matched_name})"
             )
 
         items.append({
