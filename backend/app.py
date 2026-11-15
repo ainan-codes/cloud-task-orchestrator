@@ -2288,6 +2288,7 @@ def _process_due_posts(start_time=None, max_seconds=None):
     deferred = 0
     page_cache = {}  # one page lookup per page, not per post
     broken_pages = set()  # circuit breaker: pages with token/auth outage
+    posts_per_page_count = {}
 
     for sp in db.due_posts():
         if _remaining(start_time) < POST_RESERVE_SECONDS:
