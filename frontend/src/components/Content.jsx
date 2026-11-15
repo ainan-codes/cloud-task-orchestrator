@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { api, buildCaption } from "../api.js";
 import PageCombo from "./PageCombo.jsx";
 import { Sparkles, Send, Plus } from "lucide-react";
+import { FacebookIcon } from "./BrandIcons.jsx";
 
 // One request per screenful. A page's library can run to thousands of items,
 // so the list is always fetched a window at a time — never all at once.
@@ -545,10 +546,11 @@ export default function Content({ pages, activePage, setActivePage, onReload }) 
                   <button
                     type="button"
                     className={`btn small ${targetPlatform === "facebook" ? "" : "ghost"}`}
-                    style={{ flex: 1, padding: "6px 8px", fontSize: 12.5 }}
+                    style={{ flex: 1, padding: "6px 8px", fontSize: 12.5, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                     onClick={() => setTargetPlatform("facebook")}
                   >
-                    🔵 Facebook
+                    <FacebookIcon size={14} />
+                    <span>Facebook</span>
                   </button>
                   {snapAccounts.length > 0 && (
                     <>

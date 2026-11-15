@@ -14,6 +14,10 @@ import {
   ExternalLink,
   ShieldCheck,
   Sparkles,
+  Video,
+  Camera,
+  FileText,
+  Zap,
 } from "lucide-react";
 
 const DM_BLUE = "#0066DC";
@@ -1109,7 +1113,10 @@ export default function Dailymotion({ subTab: propSubTab, onSelectSubTab }) {
               {/* Video */}
               <div style={{ background: "var(--bg-input)", border: "1px solid rgba(0, 102, 220, 0.3)", borderRadius: 8, padding: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#38bdf8" }}>🎥 Video / Reel</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#38bdf8", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <Video size={13} />
+                    <span>Video / Reel</span>
+                  </span>
                   <span style={{ fontSize: 11, background: "rgba(16, 185, 129, 0.15)", color: "#34d399", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
                     Supported
                   </span>
@@ -1128,7 +1135,10 @@ export default function Dailymotion({ subTab: propSubTab, onSelectSubTab }) {
               {/* Photo - Explicitly Blocked */}
               <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 14, opacity: 0.65 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>📸 Photo / Image</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <Camera size={13} />
+                    <span>Photo / Image</span>
+                  </span>
                   <span style={{ fontSize: 10, background: "rgba(239, 68, 68, 0.15)", color: "#fca5a5", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
                     Not Supported
                   </span>
@@ -1141,7 +1151,10 @@ export default function Dailymotion({ subTab: propSubTab, onSelectSubTab }) {
               {/* Text - Explicitly Blocked */}
               <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 14, opacity: 0.65 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>📝 Text / Status</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <FileText size={13} />
+                    <span>Text / Status</span>
+                  </span>
                   <span style={{ fontSize: 10, background: "rgba(239, 68, 68, 0.15)", color: "#fca5a5", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
                     Not Supported
                   </span>
@@ -1256,8 +1269,10 @@ export default function Dailymotion({ subTab: propSubTab, onSelectSubTab }) {
               className="btn btn-secondary btn-sm"
               onClick={handleLoadDmPreview}
               disabled={loadingDmPreview || !destChannelId}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
             >
-              {loadingDmPreview ? "Calculating Preview…" : "⚡ Preview Video Schedule (Dry-Run)"}
+              <Zap size={13} />
+              <span>{loadingDmPreview ? "Calculating Preview…" : "Preview Video Schedule (Dry-Run)"}</span>
             </button>
             <button
               type="button"

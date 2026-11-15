@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Film } from "lucide-react";
 
 const EMAIL = "ainan@admin.com";
 const PASSWORD = "qwerty";
@@ -45,16 +46,14 @@ export default function Login({ onDone }) {
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
+            width: 44,
+            height: 44,
+            borderRadius: 10,
+            background: "var(--accent)",
             color: "#fff",
-            fontSize: 22,
-            boxShadow: "0 0 20px rgba(99, 102, 241, 0.4)",
             marginBottom: 12,
           }}>
-            🎬
+            <Film size={22} />
           </div>
           <h1 className="gate-title">Reel Ledger</h1>
           <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>

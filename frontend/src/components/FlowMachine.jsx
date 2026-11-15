@@ -764,7 +764,7 @@ export default function FlowMachine({ pages, activePage }) {
                 style={{ flex: 1, justifyContent: "center", padding: "10px 16px", fontSize: 14, fontWeight: 600, gap: 8 }}
               >
                 <Play size={16} fill="currentColor" />
-                <span>{submitting ? "Dispatching Jobs…" : `⚡ Launch Generation (${count} Pieces)`}</span>
+                <span>{submitting ? "Dispatching Jobs…" : `Launch Generation (${count} Pieces)`}</span>
               </button>
 
               {mediaType === "photo" && (
