@@ -2303,7 +2303,12 @@ def _process_due_posts(start_time=None, max_seconds=None):
             deferred += 1
             continue
 
-        # No artificial rate-limiting caps — users have full freedom to post anytime
+        # 2. Smart spacing guard: post at most 1 reel per page per dispatch cycle.
+        # If multiple posts are due (e.g. after a runner delay), subsequent items
+        # stay pending for subsequent cycles to prevent spamming Facebook simultaneously.
+        if posts_per_page_count.get(page_id, 0) >= 1:
+            deferred += 1
+            continue
 
 
         # 3. Dedup check
