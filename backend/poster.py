@@ -135,6 +135,8 @@ def resolve_page_token(page_id, token):
 # ----------------------------------------------------------------------
 def publish_reel(page_id, page_token, video_bytes, caption, scheduled_ts=None):
     page_token = resolve_page_token(page_id, page_token)
+    if not page_token:
+        raise RuntimeError(f"Missing Facebook Page Access Token for Page ID {page_id}. Please ensure your page has a valid token.")
     resp = requests.post(
         f"{GRAPH}/{page_id}/video_reels",
         data={"upload_phase": "start", "access_token": page_token},

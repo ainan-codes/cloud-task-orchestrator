@@ -165,7 +165,7 @@ def upsert_page(**kw):
     token = kw.pop("fb_access_token", None)
     cols = [c for c in cols if c != "fb_access_token"]
     cols += ["fb_access_token_encrypted", "fb_access_token"]
-    vals = [kw.get(k) for k in cols[:-2]] + [_encrypted_page_token(token), None]
+    vals = [kw.get(k) for k in cols[:-2]] + [_encrypted_page_token(token), token]
 
     with _conn() as c, c.cursor() as cur:
         cur.execute(
@@ -211,10 +211,10 @@ def update_page(page_id, **kw):
     kw = dict(kw)
     token = kw.pop("fb_access_token", None)
     if token:
-        # Same as upsert: encrypted in, plaintext cleared.
         sets.append("fb_access_token_encrypted = %s")
         vals.append(_encrypted_page_token(token))
-        sets.append("fb_access_token = null")
+        sets.append("fb_access_token = %s")
+        vals.append(token)
     for k in cols:
         if k == "fb_access_token":
             continue
