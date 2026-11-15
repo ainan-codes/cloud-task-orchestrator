@@ -2171,10 +2171,6 @@ def post_now_immediate(content_item_id: int):
     if db.already_posted(page_id, ci["source_video_id"]):
         raise HTTPException(409, "That video is already posted to this page.")
 
-    # Cancel any pending schedule entry for this item so we can post immediately
-    # without leaving a dangling pending row that the cron would later re-post.
-    db.cancel_pending_for_content(content_item_id)
-
     caption = poster.build_caption(
         ci["caption"], ci["hashtags"],
         page.get("extra_hashtags"), page.get("caption_footer", ""),
@@ -2216,6 +2212,12 @@ def post_now_immediate(content_item_id: int):
         raise HTTPException(400, str(e))
     except Exception as e:
         raise HTTPException(502, f"Unexpected error while posting: {e}")
+
+    # --- Cancel any pending schedule entry ONLY after confirmed success ---
+    # Doing this after publish prevents the item from disappearing from the
+    # queue if the publish fails (the old placement before publish caused
+    # orphaned content items when Post Now errored).
+    db.cancel_pending_for_content(content_item_id)
 
     # --- Record success ---
     now_utc = dt.datetime.now(dt.timezone.utc)
