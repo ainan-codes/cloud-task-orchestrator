@@ -184,15 +184,21 @@ def youtube_oauth_callback(
 
 @youtube_router.get("/channels")
 def list_youtube_channels():
-    """List connected YouTube channels."""
+    """List connected YouTube channels with per-channel job statistics."""
     with _conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT id, channel_id, title, custom_url, thumbnail_url,
-                       default_privacy, default_tags, is_connected,
-                       token_expires_at, created_at, updated_at
-                FROM youtube_channels
-                ORDER BY id ASC;
+                SELECT c.id, c.channel_id, c.title, c.custom_url, c.thumbnail_url,
+                       c.default_privacy, c.default_tags, c.is_connected,
+                       c.token_expires_at, c.created_at, c.updated_at,
+                       COUNT(j.id) FILTER (WHERE j.status = 'pending') as pending_count,
+                       COUNT(j.id) FILTER (WHERE j.status = 'posted') as posted_count,
+                       COUNT(j.id) FILTER (WHERE j.status = 'failed') as failed_count,
+                       COUNT(j.id) as total_jobs_count
+                FROM youtube_channels c
+                LEFT JOIN youtube_jobs j ON c.id = j.channel_id
+                GROUP BY c.id
+                ORDER BY c.id ASC;
             """)
             return cur.fetchall()
 
@@ -245,11 +251,12 @@ def list_youtube_jobs(
     limit: int = 1000,
     offset: int = 0,
     order: str = "asc",
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    channel_id: Optional[int] = None
 ):
     """List queued and historical YouTube posting jobs.
     Defaults to ASC order so upcoming scheduled posts appear first chronologically.
-    Default limit is 1000 so full queues are never arbitrarily truncated at 100."""
+    Supports filtering by status and channel_id. Default limit is 1000."""
     with _conn() as conn:
         with conn.cursor() as cur:
             sort_order = "DESC" if order.lower() == "desc" else "ASC"
@@ -258,6 +265,9 @@ def list_youtube_jobs(
             if status:
                 where_clauses.append("j.status = %s")
                 params.append(status)
+            if channel_id:
+                where_clauses.append("j.channel_id = %s")
+                params.append(channel_id)
             where_sql = (" WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
             cur.execute(f"""
@@ -340,17 +350,23 @@ def cancel_youtube_job(job_id: int):
 
 
 @youtube_router.get("/history")
-def list_youtube_history():
-    """List YouTube published ledger records."""
+def list_youtube_history(
+    channel_id: Optional[int] = None,
+    limit: int = 200
+):
+    """List YouTube published ledger records with optional channel filter."""
     with _conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("""
+            where_sql = "WHERE r.channel_id = %s" if channel_id else ""
+            params = [channel_id] if channel_id else []
+            cur.execute(f"""
                 SELECT r.id, r.channel_id, c.title as channel_title,
                        r.video_id, r.title, r.privacy_status, r.status,
                        r.error, r.published_at
                 FROM youtube_publishing_records r
                 JOIN youtube_channels c ON r.channel_id = c.id
+                {where_sql}
                 ORDER BY r.published_at DESC
-                LIMIT 100;
-            """)
+                LIMIT %s;
+            """, (*params, limit))
             return cur.fetchall()

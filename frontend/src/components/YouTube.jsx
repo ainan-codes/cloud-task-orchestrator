@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { api } from "../api.js";
 import { YouTubeIcon } from "./BrandIcons.jsx";
 import AccountLinkModal from "./AccountLinkModal.jsx";
@@ -10,6 +10,14 @@ import {
   Clock,
   Send,
   Settings,
+  Globe,
+  ExternalLink,
+  RefreshCw,
+  AlertCircle,
+  Filter,
+  CheckCircle2,
+  ArrowRight,
+  Play,
 } from "lucide-react";
 
 const YT_RED = "#ef4444";
@@ -42,7 +50,7 @@ function defaultScheduleValue(hoursAhead = 1) {
 }
 
 export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
-  const [internalTab, setInternalTab] = useState("publish");
+  const [internalTab, setInternalTab] = useState("queue");
   const tab = propSubTab || internalTab;
   const setTab = onSelectSubTab || setInternalTab;
 
@@ -53,6 +61,9 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState({ msg: "", isErr: false });
   const [busyId, setBusyId] = useState(null);
+
+  // Active Channel Filter: "all" or specific channel id (number)
+  const [selectedChannelId, setSelectedChannelId] = useState("all");
 
   // Form states
   const [destChannelId, setDestChannelId] = useState("");
@@ -76,6 +87,7 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
   const [newChannelId, setNewChannelId] = useState("");
   const [newChannelTitle, setNewChannelTitle] = useState("");
   const [newCustomUrl, setNewCustomUrl] = useState("");
+  const [showLinkModal, setShowLinkModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -104,6 +116,45 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
     loadData();
   }, [loadData]);
 
+  // Keep destChannelId aligned when user picks a specific channel
+  useEffect(() => {
+    if (selectedChannelId !== "all") {
+      setDestChannelId(selectedChannelId);
+    } else if (channels.length > 0 && !destChannelId) {
+      setDestChannelId(channels[0].id);
+    }
+  }, [selectedChannelId, channels, destChannelId]);
+
+  // Selected Channel Object
+  const selectedChannel = useMemo(() => {
+    if (selectedChannelId === "all") return null;
+    return channels.find((c) => String(c.id) === String(selectedChannelId)) || null;
+  }, [channels, selectedChannelId]);
+
+  // Active jobs based on selectedChannelId
+  const activeJobs = useMemo(() => {
+    if (selectedChannelId === "all") return jobs;
+    return jobs.filter((j) => String(j.channel_id) === String(selectedChannelId));
+  }, [jobs, selectedChannelId]);
+
+  // Active history based on selectedChannelId
+  const activeHistory = useMemo(() => {
+    if (selectedChannelId === "all") return history;
+    return history.filter((h) => String(h.channel_id) === String(selectedChannelId));
+  }, [history, selectedChannelId]);
+
+  const pendingJobsCount = useMemo(() => {
+    return activeJobs.filter((j) => j.status === "pending").length;
+  }, [activeJobs]);
+
+  const postedJobsCount = useMemo(() => {
+    return activeJobs.filter((j) => j.status === "posted").length;
+  }, [activeJobs]);
+
+  const failedJobsCount = useMemo(() => {
+    return activeJobs.filter((j) => j.status === "failed").length;
+  }, [activeJobs]);
+
   async function handleAddChannel(e) {
     e.preventDefault();
     if (!newChannelId.trim() || !newChannelTitle.trim()) return;
@@ -125,11 +176,14 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
     }
   }
 
-  async function handleDeleteChannel(id, title) {
-    if (!window.confirm(`Remove YouTube channel "${title}"?`)) return;
+  async function handleDeleteChannel(id, channelTitle) {
+    if (!window.confirm(`Remove YouTube channel "${channelTitle}"? All associated schedules will be deleted.`)) return;
     try {
       await api.deleteYoutubeChannel(id);
-      setNotice({ msg: `Channel "${title}" removed.`, isErr: false });
+      setNotice({ msg: `Channel "${channelTitle}" removed.`, isErr: false });
+      if (String(selectedChannelId) === String(id)) {
+        setSelectedChannelId("all");
+      }
       await loadData();
     } catch (err) {
       setNotice({ msg: `Failed to delete channel: ${err.message}`, isErr: true });
@@ -178,10 +232,10 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
     }
   }
 
-  async function handlePostNow(id, title) {
-    if (!window.confirm(`Publish "${title}" to YouTube right now?`)) return;
+  async function handlePostNow(id, jobTitle) {
+    if (!window.confirm(`Publish "${jobTitle}" to YouTube right now?`)) return;
     setBusyId(`post-${id}`);
-    setNotice({ msg: `Uploading "${title}" to YouTube now... Please wait.`, isErr: false });
+    setNotice({ msg: `Uploading "${jobTitle}" to YouTube now... Please wait.`, isErr: false });
     try {
       const res = await api.postYoutubeJobNow(id);
       if (res && res.url) {
@@ -190,7 +244,7 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
           isErr: false,
         });
       } else {
-        setNotice({ msg: `Published "${title}" successfully!`, isErr: false });
+        setNotice({ msg: `Published "${jobTitle}" successfully!`, isErr: false });
       }
       await loadData();
     } catch (err) {
@@ -211,18 +265,18 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
     }
   }
 
-  const [showLinkModal, setShowLinkModal] = useState(false);
-
   return (
     <div className="view">
       <header className="view-head">
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <YouTubeIcon size={38} />
           <div>
-            <div className="kicker" style={{ color: "#ef4444" }}>YouTube Shorts & Studio</div>
+            <div className="kicker" style={{ color: YT_RED, fontWeight: 700 }}>
+              YouTube Shorts & Studio
+            </div>
             <h1 className="h1">YouTube Studio</h1>
             <p className="sub" style={{ marginTop: 2 }}>
-              Publish Shorts and videos to your connected YouTube channels with automated scheduling.
+              Multi-channel YouTube automation, publishing queue, and autonomous Shorts scheduler.
             </p>
           </div>
         </div>
@@ -239,7 +293,15 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
           <button
             type="button"
             className="btn btn-primary"
-            style={{ background: "#dc2626", borderColor: "#dc2626", color: "#fff", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 7 }}
+            style={{
+              background: "#dc2626",
+              borderColor: "#dc2626",
+              color: "#fff",
+              fontWeight: 600,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+            }}
             onClick={async () => {
               try {
                 const res = await api.youtubeOAuthAuthorize();
@@ -271,7 +333,7 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
             setNotice({ msg: `Failed to start YouTube connection: ${e.message}`, isErr: true });
           }
         }}
-        onSaveCookies={async ({ accountAlias, rawCookies }) => {
+        onSaveCookies={async ({ accountAlias }) => {
           setNotice({
             msg: `Session cookies for "${accountAlias}" successfully stored in vault. YouTube automated upload engine active!`,
             isErr: false,
@@ -285,31 +347,210 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
         </div>
       )}
 
-      {/* ---------------- KPIs ---------------- */}
+      {/* ---------------- CHANNEL SELECTOR BAR (FACEBOOK PARITY) ---------------- */}
+      <div
+        className="card"
+        style={{
+          padding: "12px 18px",
+          marginBottom: 20,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 14,
+          background: "var(--bg-card, #121417)",
+          border: "1px solid var(--border)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--ink-muted)" }}>
+              Channel:
+            </span>
+            <select
+              value={selectedChannelId}
+              onChange={(e) => {
+                const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                setSelectedChannelId(val);
+                setCurrentPage(1);
+              }}
+              style={{
+                padding: "6px 12px",
+                fontSize: 13,
+                fontWeight: 600,
+                borderRadius: 6,
+                background: "var(--bg-subtle, #1a1d21)",
+                color: "var(--ink)",
+                border: "1px solid var(--border)",
+                cursor: "pointer",
+                minWidth: 200,
+              }}
+            >
+              <option value="all">🌐 All Channels ({channels.length}) · {jobs.length} Queued</option>
+              {channels.map((c) => {
+                const count = jobs.filter((j) => j.channel_id === c.id).length;
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.title} {c.custom_url ? `(${c.custom_url})` : ""} · {count} queued
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* Quick-switch Channel Buttons */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className={`btn ${selectedChannelId === "all" ? "btn-primary" : "btn-secondary"}`}
+              style={{
+                fontSize: 11,
+                padding: "4px 10px",
+                fontWeight: 600,
+                background: selectedChannelId === "all" ? YT_RED : undefined,
+                borderColor: selectedChannelId === "all" ? YT_RED : undefined,
+                color: selectedChannelId === "all" ? "#fff" : undefined,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+              onClick={() => {
+                setSelectedChannelId("all");
+                setCurrentPage(1);
+              }}
+            >
+              <span>🌐 All ({channels.length})</span>
+            </button>
+            {channels.map((c) => {
+              const isSel = String(selectedChannelId) === String(c.id);
+              const count = jobs.filter((j) => j.channel_id === c.id).length;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`btn ${isSel ? "btn-primary" : "btn-secondary"}`}
+                  style={{
+                    fontSize: 11,
+                    padding: "4px 10px",
+                    fontWeight: 600,
+                    background: isSel ? YT_RED : undefined,
+                    borderColor: isSel ? YT_RED : undefined,
+                    color: isSel ? "#fff" : undefined,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  onClick={() => {
+                    setSelectedChannelId(c.id);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <YouTubeIcon size={12} />
+                  <span>{c.title}</span>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      padding: "1px 5px",
+                      borderRadius: 10,
+                      background: isSel ? "rgba(255,255,255,0.25)" : "var(--bg-subtle, rgba(255,255,255,0.08))",
+                      color: isSel ? "#fff" : "var(--ink-muted)",
+                    }}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selected Channel Metadata */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12 }}>
+          {selectedChannel ? (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "#10b981", fontSize: 10 }}>●</span>
+                <span style={{ fontWeight: 600, color: "var(--ink)" }}>{selectedChannel.title}</span>
+                {selectedChannel.custom_url && (
+                  <span style={{ color: "var(--ink-muted)", fontFamily: "monospace", fontSize: 11 }}>
+                    {selectedChannel.custom_url}
+                  </span>
+                )}
+              </div>
+              <span style={{ color: "var(--border)" }}>|</span>
+              <a
+                href={`https://youtube.com/channel/${selectedChannel.channel_id}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  color: YT_RED,
+                  textDecoration: "none",
+                  fontWeight: 600,
+                  fontSize: 11,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                }}
+              >
+                <span>Studio</span>
+                <ExternalLink size={11} />
+              </a>
+            </>
+          ) : (
+            <div style={{ color: "var(--ink-muted)", fontSize: 12 }}>
+              Aggregated across <strong style={{ color: "var(--ink)" }}>{channels.length}</strong> active creator channels
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ---------------- DYNAMIC KPIs ---------------- */}
       <div className="grid-3" style={{ marginBottom: 24 }}>
         <div className="card stat-card">
           <div className="stat-card-head">
-            <span className="stat-label">Connected Channels</span>
+            <span className="stat-label">
+              {selectedChannel ? "Selected Channel" : "Connected Channels"}
+            </span>
             <Tv size={16} className="stat-icon" />
           </div>
-          <div className="stat-num">{channels.length}</div>
-          <div className="stat-sub">Active YouTube creator accounts</div>
+          <div className="stat-num" style={{ fontSize: selectedChannel ? 20 : 28, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selectedChannel ? selectedChannel.title : channels.length}
+          </div>
+          <div className="stat-sub">
+            {selectedChannel
+              ? (selectedChannel.custom_url || selectedChannel.channel_id)
+              : "Active YouTube creator accounts"}
+          </div>
         </div>
+
         <div className="card stat-card">
           <div className="stat-card-head">
-            <span className="stat-label">Published Shorts & Videos</span>
+            <span className="stat-label">
+              {selectedChannel ? `Published (${selectedChannel.title})` : "Published Shorts & Videos"}
+            </span>
             <CheckCircle size={16} className="stat-icon" />
           </div>
-          <div className="stat-num">{history.length}</div>
-          <div className="stat-sub">Dispatched to YouTube Studio</div>
+          <div className="stat-num">{activeHistory.length}</div>
+          <div className="stat-sub">
+            {selectedChannel
+              ? `Dispatched to ${selectedChannel.title}`
+              : "Dispatched across all connected channels"}
+          </div>
         </div>
+
         <div className="card stat-card">
           <div className="stat-card-head">
-            <span className="stat-label">Queued Dispatches</span>
+            <span className="stat-label">
+              {selectedChannel ? `Queued (${selectedChannel.title})` : "Queued Dispatches"}
+            </span>
             <Clock size={16} className="stat-icon" />
           </div>
-          <div className="stat-num">{jobs.filter((j) => j.status === "pending").length}</div>
-          <div className="stat-sub">Awaiting scheduled post time</div>
+          <div className="stat-num">{pendingJobsCount}</div>
+          <div className="stat-sub">
+            {selectedChannel
+              ? `~${Math.ceil(pendingJobsCount / 6)} days runway at 6 Shorts/day`
+              : "Awaiting scheduled post time"}
+          </div>
         </div>
       </div>
 
@@ -339,7 +580,7 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
         >
           <Clock size={14} />
           <span>Publishing Queue</span>
-          <span className="snap-tab-badge">{jobs.length}</span>
+          <span className="snap-tab-badge">{activeJobs.length}</span>
         </button>
         <button
           type="button"
@@ -348,7 +589,7 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
         >
           <CheckCircle size={14} />
           <span>Published Ledger</span>
-          <span className="snap-tab-badge">{history.length}</span>
+          <span className="snap-tab-badge">{activeHistory.length}</span>
         </button>
         <button
           type="button"
@@ -384,8 +625,13 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
           </div>
         ) : (
           <div className="card" style={{ padding: 0, marginBottom: 24 }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Compose & Schedule Post</h2>
+              {selectedChannel && (
+                <span style={{ fontSize: 12, color: "var(--ink-muted)" }}>
+                  Targeting: <strong style={{ color: "var(--ink)" }}>{selectedChannel.title}</strong>
+                </span>
+              )}
             </div>
             <form onSubmit={handleCreateJob} style={{ padding: "20px", display: "grid", gap: 16 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -511,15 +757,41 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                   ✕ Close
                 </button>
               </div>
-              <div style={{ marginBottom: 18, padding: "14px 16px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.25)", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14 }}>
+              <div
+                style={{
+                  marginBottom: 18,
+                  padding: "14px 16px",
+                  background: "rgba(239, 68, 68, 0.08)",
+                  border: "1px solid rgba(239, 68, 68, 0.25)",
+                  borderRadius: 8,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 14,
+                }}
+              >
                 <div>
-                  <div style={{ fontWeight: 600, color: "#fff", fontSize: 13.5 }}>Automatic 1-Click Connection (Recommended)</div>
-                  <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>Sign in with Google to automatically link your channel and grant upload permission.</div>
+                  <div style={{ fontWeight: 600, color: "#fff", fontSize: 13.5 }}>
+                    Automatic 1-Click Connection (Recommended)
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 2 }}>
+                    Sign in with Google to automatically link your channel and grant upload permission.
+                  </div>
                 </div>
                 <button
                   type="button"
                   className="btn btn-primary"
-                  style={{ background: YT_RED, borderColor: YT_RED, color: "#fff", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 7, whiteSpace: "nowrap", padding: "8px 16px" }}
+                  style={{
+                    background: YT_RED,
+                    borderColor: YT_RED,
+                    color: "#fff",
+                    fontWeight: 600,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                    whiteSpace: "nowrap",
+                    padding: "8px 16px",
+                  }}
                   onClick={async () => {
                     try {
                       const res = await api.youtubeOAuthAuthorize();
@@ -536,7 +808,18 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                 </button>
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 14px", color: "var(--ink-muted)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  margin: "10px 0 14px",
+                  color: "var(--ink-muted)",
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
                 <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
                 <span>Or Enter Manually</span>
                 <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
@@ -588,8 +871,18 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
           )}
 
           <div className="card" style={{ padding: 0 }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Connected Channels ({channels.length})</h2>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+                Connected Channels ({channels.length})
+              </h2>
               <button
                 type="button"
                 className="btn"
@@ -609,41 +902,92 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                   <tr>
                     <th>Channel</th>
                     <th>Channel ID</th>
+                    <th>Queue Depth</th>
+                    <th>Published</th>
                     <th>Default Visibility</th>
                     <th>Status</th>
                     <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {channels.map((c) => (
-                    <tr key={c.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{c.title}</div>
-                        {c.custom_url && (
-                          <div style={{ fontSize: 11, color: "var(--ink-muted)" }}>{c.custom_url}</div>
-                        )}
-                      </td>
-                      <td style={{ fontSize: 11, fontFamily: "monospace" }}>{c.channel_id}</td>
-                      <td>
-                        <span style={{ fontSize: 12, textTransform: "capitalize" }}>
-                          {c.default_privacy || "public"}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 11, color: "#1e6b34", fontWeight: 600 }}>● Active</span>
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <button
-                          type="button"
-                          className="btn"
-                          style={{ fontSize: 11, padding: "3px 8px", color: "#a3231a" }}
-                          onClick={() => handleDeleteChannel(c.id, c.title)}
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {channels.map((c) => {
+                    const cJobs = jobs.filter((j) => j.channel_id === c.id);
+                    const cPending = cJobs.filter((j) => j.status === "pending").length;
+                    const cHistory = history.filter((h) => h.channel_id === c.id).length;
+                    return (
+                      <tr key={c.id}>
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <YouTubeIcon size={20} />
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{c.title}</div>
+                              {c.custom_url && (
+                                <div style={{ fontSize: 11, color: "var(--ink-muted)" }}>{c.custom_url}</div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 11, fontFamily: "monospace" }}>{c.channel_id}</td>
+                        <td>
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: "2px 7px",
+                              borderRadius: 4,
+                              background: "rgba(239, 68, 68, 0.1)",
+                              color: YT_RED,
+                            }}
+                          >
+                            {cPending} pending
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 12, color: "var(--ink-soft)", fontWeight: 500 }}>
+                            {cHistory} posted
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 12, textTransform: "capitalize" }}>
+                            {c.default_privacy || "public"}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 11, color: "#1e6b34", fontWeight: 600 }}>● Active</span>
+                        </td>
+                        <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 11, padding: "3px 8px", marginRight: 6 }}
+                            onClick={() => {
+                              setSelectedChannelId(c.id);
+                              setTab("queue");
+                            }}
+                          >
+                            View Queue →
+                          </button>
+                          <a
+                            href={`https://youtube.com/channel/${c.channel_id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn"
+                            style={{ fontSize: 11, padding: "3px 8px", marginRight: 6, textDecoration: "none" }}
+                          >
+                            Studio ↗
+                          </a>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ fontSize: 11, padding: "3px 8px", color: "#a3231a" }}
+                            onClick={() => handleDeleteChannel(c.id, c.title)}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -651,9 +995,10 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
         </div>
       )}
 
-      {/* ---------------- TAB 3: QUEUE ---------------- */}
+      {/* ---------------- TAB 3: PUBLISHING QUEUE ---------------- */}
       {tab === "queue" && (() => {
-        const filteredJobs = jobs
+        // Filter jobs based on selected channel, status, search query, and sort
+        const filteredJobs = activeJobs
           .filter((j) => {
             if (queueStatusFilter !== "all" && j.status !== queueStatusFilter) return false;
             if (queueSearch.trim()) {
@@ -680,24 +1025,57 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
 
         return (
           <div className="card" style={{ padding: 0 }}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
               <div>
-                <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
-                  Publishing Queue ({filteredJobs.length} {filteredJobs.length !== jobs.length ? `of ${jobs.length}` : ""})
-                </h2>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+                    Publishing Queue ({filteredJobs.length} {filteredJobs.length !== activeJobs.length ? `of ${activeJobs.length}` : ""})
+                  </h2>
+                  {selectedChannel && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        padding: "2px 8px",
+                        borderRadius: 12,
+                        background: "rgba(239, 68, 68, 0.12)",
+                        color: YT_RED,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {selectedChannel.title}
+                    </span>
+                  )}
+                </div>
                 <div style={{ fontSize: 11, color: "var(--ink-muted)", marginTop: 2 }}>
                   Showing scheduled YouTube Shorts & Videos in chronological dispatch order
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {filteredJobs.some(j => j.status === "pending") && (
+                {filteredJobs.some((j) => j.status === "pending") && (
                   <button
                     type="button"
                     className="btn btn-primary"
-                    style={{ fontSize: 11, padding: "5px 12px", background: YT_RED, borderColor: YT_RED, color: "#fff", fontWeight: 600 }}
+                    style={{
+                      fontSize: 11,
+                      padding: "5px 12px",
+                      background: YT_RED,
+                      borderColor: YT_RED,
+                      color: "#fff",
+                      fontWeight: 600,
+                    }}
                     disabled={!!busyId}
                     onClick={() => {
-                      const nextDue = filteredJobs.find(j => j.status === "pending");
+                      const nextDue = filteredJobs.find((j) => j.status === "pending");
                       if (nextDue) handlePostNow(nextDue.id, nextDue.title);
                     }}
                   >
@@ -705,40 +1083,86 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                   </button>
                 )}
                 <button className="btn" style={{ fontSize: 11, padding: "5px 12px" }} onClick={loadData}>
+                  <RefreshCw size={12} style={{ marginRight: 4 }} />
                   Refresh
                 </button>
               </div>
             </div>
 
             {/* Filter & Search Bar */}
-            <div style={{ padding: "12px 20px", background: "var(--bg-subtle, rgba(255,255,255,0.02))", borderBottom: "1px solid var(--border)", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+            <div
+              style={{
+                padding: "12px 20px",
+                background: "var(--bg-subtle, rgba(255,255,255,0.02))",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 12,
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
               <div style={{ display: "flex", gap: 8, alignItems: "center", flex: "1 1 250px" }}>
                 <input
                   type="text"
                   placeholder="Search by title, series, or filename..."
                   value={queueSearch}
-                  onChange={(e) => { setQueueSearch(e.target.value); setCurrentPage(1); }}
+                  onChange={(e) => {
+                    setQueueSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   style={{ padding: "6px 10px", fontSize: 12, flex: 1, minWidth: 180 }}
                 />
                 {queueSearch && (
-                  <button className="btn" style={{ fontSize: 11, padding: "5px 8px" }} onClick={() => setQueueSearch("")}>
+                  <button
+                    className="btn"
+                    style={{ fontSize: 11, padding: "5px 8px" }}
+                    onClick={() => setQueueSearch("")}
+                  >
                     Clear
                   </button>
                 )}
               </div>
 
               <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                {/* Channel Filter in Queue Bar */}
+                <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ color: "var(--ink-muted)" }}>Channel:</span>
+                  <select
+                    value={selectedChannelId}
+                    onChange={(e) => {
+                      const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                      setSelectedChannelId(val);
+                      setCurrentPage(1);
+                    }}
+                    style={{ padding: "5px 8px", fontSize: 12 }}
+                  >
+                    <option value="all">All Channels ({jobs.length})</option>
+                    {channels.map((c) => {
+                      const cCount = jobs.filter((j) => j.channel_id === c.id).length;
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.title} ({cCount})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
                 <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
                   <span style={{ color: "var(--ink-muted)" }}>Status:</span>
                   <select
                     value={queueStatusFilter}
-                    onChange={(e) => { setQueueStatusFilter(e.target.value); setCurrentPage(1); }}
+                    onChange={(e) => {
+                      setQueueStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     style={{ padding: "5px 8px", fontSize: 12 }}
                   >
-                    <option value="all">All ({jobs.length})</option>
-                    <option value="pending">Pending ({jobs.filter(j => j.status === "pending").length})</option>
-                    <option value="posted">Posted ({jobs.filter(j => j.status === "posted").length})</option>
-                    <option value="failed">Failed ({jobs.filter(j => j.status === "failed").length})</option>
+                    <option value="all">All ({activeJobs.length})</option>
+                    <option value="pending">Pending ({pendingJobsCount})</option>
+                    <option value="posted">Posted ({postedJobsCount})</option>
+                    <option value="failed">Failed ({failedJobsCount})</option>
                   </select>
                 </label>
 
@@ -758,7 +1182,10 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                   <span style={{ color: "var(--ink-muted)" }}>Per Page:</span>
                   <select
                     value={pageSize}
-                    onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
                     style={{ padding: "5px 8px", fontSize: 12 }}
                   >
                     <option value={25}>25</option>
@@ -771,10 +1198,10 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
             </div>
 
             {filteredJobs.length === 0 ? (
-              <div style={{ padding: 32, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>
-                {queueSearch || queueStatusFilter !== "all"
+              <div style={{ padding: 36, textAlign: "center", color: "var(--ink-muted)", fontSize: 13 }}>
+                {queueSearch || queueStatusFilter !== "all" || selectedChannelId !== "all"
                   ? "No scheduled jobs match your filter criteria."
-                  : "Nothing queued. Scheduled posts will show here until their publish time arrives."}
+                  : "Nothing queued. Scheduled posts will appear here until their publish time arrives."}
               </div>
             ) : (
               <>
@@ -797,12 +1224,54 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                         <td style={{ fontSize: 11, color: "var(--ink-muted)", textAlign: "center" }}>
                           {startIndex + idx + 1}
                         </td>
-                        <td style={{ fontSize: 12 }}>{j.channel_title}</td>
-                        <td style={{ fontSize: 12, fontWeight: 500, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={j.title}>
+                        <td style={{ fontSize: 12 }}>
+                          <button
+                            type="button"
+                            title={`Click to filter only ${j.channel_title}`}
+                            onClick={() => {
+                              setSelectedChannelId(j.channel_id);
+                              setCurrentPage(1);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              cursor: "pointer",
+                              color: String(selectedChannelId) === String(j.channel_id) ? YT_RED : "var(--ink)",
+                              fontWeight: 600,
+                              textAlign: "left",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            <YouTubeIcon size={13} />
+                            <span>{j.channel_title}</span>
+                          </button>
+                        </td>
+                        <td
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 500,
+                            maxWidth: 360,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={j.title}
+                        >
                           {j.title}
                         </td>
                         <td style={{ fontSize: 11 }}>
-                          <span style={{ padding: "2px 6px", borderRadius: 4, background: "rgba(239,68,68,0.1)", color: YT_RED, fontWeight: 600 }}>
+                          <span
+                            style={{
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "rgba(239,68,68,0.1)",
+                              color: YT_RED,
+                              fontWeight: 600,
+                            }}
+                          >
                             {j.is_short ? "Short" : "Video"}
                           </span>
                         </td>
@@ -816,14 +1285,33 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                               fontWeight: 600,
                               padding: "2px 6px",
                               borderRadius: 4,
-                              background: j.status === "posted" ? "#e6f4ea" : j.status === "failed" ? "#fdecea" : "#eceff3",
-                              color: j.status === "posted" ? "#1e6b34" : j.status === "failed" ? "#a3231a" : "#4a5560",
+                              background:
+                                j.status === "posted"
+                                  ? "#e6f4ea"
+                                  : j.status === "failed"
+                                  ? "#fdecea"
+                                  : "#eceff3",
+                              color:
+                                j.status === "posted"
+                                  ? "#1e6b34"
+                                  : j.status === "failed"
+                                  ? "#a3231a"
+                                  : "#4a5560",
                             }}
                           >
                             {j.status}
                           </span>
                         </td>
-                        <td style={{ fontSize: 11, color: "#a3231a", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <td
+                          style={{
+                            fontSize: 11,
+                            color: "#a3231a",
+                            maxWidth: 160,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           {j.error || "—"}
                         </td>
                         <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
@@ -875,9 +1363,20 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
 
                 {/* Pagination Controls */}
                 {pageSize > 0 && totalPages > 1 && (
-                  <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  <div
+                    style={{
+                      padding: "12px 20px",
+                      borderTop: "1px solid var(--border)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 10,
+                    }}
+                  >
                     <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>
-                      Showing {startIndex + 1}–{Math.min(startIndex + effectivePageSize, filteredJobs.length)} of {filteredJobs.length} scheduled items
+                      Showing {startIndex + 1}–
+                      {Math.min(startIndex + effectivePageSize, filteredJobs.length)} of {filteredJobs.length} scheduled items
                     </div>
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                       <button
@@ -913,15 +1412,61 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
       {/* ---------------- TAB 4: PUBLISHED LEDGER ---------------- */}
       {tab === "history" && (
         <div className="card" style={{ padding: 0 }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Published Ledger ({history.length})</h2>
-            <button className="btn" style={{ fontSize: 11, padding: "4px 10px" }} onClick={loadData}>
-              Refresh
-            </button>
+          <div
+            style={{
+              padding: "16px 20px",
+              borderBottom: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+                Published Ledger ({activeHistory.length})
+              </h2>
+              {selectedChannel && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    padding: "2px 8px",
+                    borderRadius: 12,
+                    background: "rgba(239, 68, 68, 0.12)",
+                    color: YT_RED,
+                    fontWeight: 600,
+                  }}
+                >
+                  {selectedChannel.title}
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select
+                value={selectedChannelId}
+                onChange={(e) => {
+                  const val = e.target.value === "all" ? "all" : Number(e.target.value);
+                  setSelectedChannelId(val);
+                }}
+                style={{ padding: "4px 8px", fontSize: 11 }}
+              >
+                <option value="all">All Channels</option>
+                {channels.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.title}
+                  </option>
+                ))}
+              </select>
+              <button className="btn" style={{ fontSize: 11, padding: "4px 10px" }} onClick={loadData}>
+                Refresh
+              </button>
+            </div>
           </div>
-          {history.length === 0 ? (
-            <div style={{ padding: 24, color: "var(--ink-muted)", fontSize: 13 }}>
-              No YouTube videos posted yet.
+          {activeHistory.length === 0 ? (
+            <div style={{ padding: 32, color: "var(--ink-muted)", fontSize: 13, textAlign: "center" }}>
+              No YouTube videos posted yet for this channel selection.
             </div>
           ) : (
             <table className="table">
@@ -935,7 +1480,7 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                 </tr>
               </thead>
               <tbody>
-                {history.map((h) => (
+                {activeHistory.map((h) => (
                   <tr key={h.id}>
                     <td style={{ fontSize: 12 }}>{fmt(h.published_at)}</td>
                     <td style={{ fontSize: 12 }}>{h.channel_title}</td>
@@ -962,7 +1507,9 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
       {/* ---------------- TAB 5: API CONFIGURATION ---------------- */}
       {tab === "settings" && (
         <div className="card" style={{ padding: 24 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 8px" }}>YouTube Data API v3 Configuration</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "0 0 8px" }}>
+            YouTube Data API v3 Configuration
+          </h2>
           <p style={{ color: "var(--ink-soft)", fontSize: 13, lineHeight: 1.5, marginBottom: 20 }}>
             Connect Google Cloud Console OAuth 2.0 Client credentials to publish Shorts and videos to YouTube.
           </p>
@@ -973,7 +1520,9 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                 {config?.client_id_configured ? (
                   <span style={{ color: "#1e6b34", fontWeight: 600 }}>✅ Configured in environment</span>
                 ) : (
-                  <span style={{ color: "#a3231a", fontWeight: 600 }}>❌ Missing (YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID)</span>
+                  <span style={{ color: "#a3231a", fontWeight: 600 }}>
+                    ❌ Missing (YOUTUBE_CLIENT_ID / GOOGLE_CLIENT_ID)
+                  </span>
                 )}
               </div>
             </div>
@@ -989,7 +1538,16 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
             </div>
             <div>
               <div className="sec-label">OAuth Redirect URI</div>
-              <code style={{ display: "block", padding: "8px 12px", background: "var(--paper-2)", borderRadius: 6, fontSize: 12, marginTop: 4 }}>
+              <code
+                style={{
+                  display: "block",
+                  padding: "8px 12px",
+                  background: "var(--paper-2)",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  marginTop: 4,
+                }}
+              >
                 {config?.redirect_uri || "https://your-domain/api/youtube/oauth/callback"}
               </code>
             </div>

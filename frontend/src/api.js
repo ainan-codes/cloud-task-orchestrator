@@ -811,7 +811,11 @@ export const api = {
     }),
   deleteYoutubeChannel: (id) =>
     backendFetch(`/api/youtube/channels/${id}`, { method: "DELETE" }),
-  youtubeJobs: () => backendFetch("/api/youtube/jobs"),
+  youtubeJobs: (params = "") =>
+    backendFetch(
+      "/api/youtube/jobs" +
+        (params ? (params.startsWith("?") ? params : `?${params}`) : "")
+    ),
   createYoutubeJob: (payload) =>
     backendFetch("/api/youtube/jobs", {
       method: "POST",
@@ -823,7 +827,11 @@ export const api = {
     backendFetch(`/api/youtube/jobs/${id}/post-now`, { method: "POST" }),
   cancelYoutubeJob: (id) =>
     backendFetch(`/api/youtube/jobs/${id}`, { method: "DELETE" }),
-  youtubeHistory: () => backendFetch("/api/youtube/history"),
+  youtubeHistory: (params = "") =>
+    backendFetch(
+      "/api/youtube/history" +
+        (params ? (params.startsWith("?") ? params : `?${params}`) : "")
+    ),
 
   // ---------------- RUMBLE ----------------
   rumbleConfig: () => backendFetch("/api/rumble/config"),
