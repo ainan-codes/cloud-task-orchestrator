@@ -47,12 +47,23 @@ class JobCreateRequest(BaseModel):
     scheduled_time_utc: str
 
 
+try:
+    import credentials
+except ImportError:
+    credentials = None
+
+
+def _get_active_credentials():
+    cid = (credentials.get("youtube_client_id") if credentials else None) or os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
+    csec = (credentials.get("youtube_client_secret") if credentials else None) or os.environ.get("YOUTUBE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
+    uri = (credentials.get("youtube_redirect_uri") if credentials else None) or os.environ.get("YOUTUBE_REDIRECT_URI") or "https://cloud-task-orchestrator.vercel.app/api/youtube/oauth/callback"
+    return cid, csec, uri
+
+
 @youtube_router.get("/config")
 def get_youtube_config():
     """Return YouTube API configuration status."""
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
-    redirect_uri = os.environ.get("YOUTUBE_REDIRECT_URI", "https://cloud-task-orchestrator.vercel.app/api/youtube/oauth/callback")
+    client_id, client_secret, redirect_uri = _get_active_credentials()
     return {
         "ready": bool(client_id and client_secret),
         "client_id_configured": bool(client_id),
@@ -67,10 +78,9 @@ def get_youtube_config():
 @youtube_router.get("/oauth/authorize")
 def youtube_oauth_authorize():
     """Return Google OAuth 2.0 authorization URL for YouTube."""
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
-    redirect_uri = os.environ.get("YOUTUBE_REDIRECT_URI", "https://cloud-task-orchestrator.vercel.app/api/youtube/oauth/callback")
+    client_id, client_secret, redirect_uri = _get_active_credentials()
     if not client_id:
-        raise HTTPException(400, "YOUTUBE_CLIENT_ID is not configured in environment")
+        raise HTTPException(400, "YOUTUBE_CLIENT_ID is not configured in environment or vault")
 
     params = {
         "client_id": client_id,
@@ -91,9 +101,7 @@ def youtube_oauth_callback(
     error: Optional[str] = None
 ):
     """Handle OAuth redirect from Google, store channel tokens, and redirect to UI."""
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
-    redirect_uri = os.environ.get("YOUTUBE_REDIRECT_URI", "https://cloud-task-orchestrator.vercel.app/api/youtube/oauth/callback")
+    client_id, client_secret, redirect_uri = _get_active_credentials()
 
     frontend_base = "http://localhost:5173" if "localhost" in redirect_uri else ""
 

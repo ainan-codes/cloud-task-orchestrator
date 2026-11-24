@@ -41,6 +41,9 @@ KEYS = {
     "snapchat_client_id": "SNAPCHAT_CLIENT_ID",
     "snapchat_client_secret": "SNAPCHAT_CLIENT_SECRET",
     "snapchat_redirect_uri": "SNAPCHAT_REDIRECT_URI",
+    "youtube_client_id": "YOUTUBE_CLIENT_ID",
+    "youtube_client_secret": "YOUTUBE_CLIENT_SECRET",
+    "youtube_redirect_uri": "YOUTUBE_REDIRECT_URI",
     "gemini_api_key": "GEMINI_API_KEY",
     "gemini_api_keys": "GEMINI_API_KEYS",
     "groq_api_key": "GROQ_API_KEY",
@@ -48,7 +51,13 @@ KEYS = {
 }
 
 # Which of those must never be echoed back, even to an authenticated admin.
-SECRET_KEYS = {"snapchat_client_secret", "gemini_api_key", "gemini_api_keys", "groq_api_key"}
+SECRET_KEYS = {
+    "snapchat_client_secret",
+    "youtube_client_secret",
+    "gemini_api_key",
+    "gemini_api_keys",
+    "groq_api_key",
+}
 
 CACHE_TTL_SECONDS = float(os.environ.get("CREDENTIAL_CACHE_TTL", "60"))
 

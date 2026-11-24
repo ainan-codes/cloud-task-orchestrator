@@ -45,8 +45,23 @@ def _get_youtube_creds(channel: Dict[str, Any]) -> Credentials:
     access_token = decrypt_token(enc_access) if enc_access else None
     refresh_token = decrypt_token(enc_refresh) if enc_refresh else None
 
-    client_id = channel.get("client_id") or os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = channel.get("client_secret") or os.environ.get("YOUTUBE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
+    try:
+        import credentials
+    except ImportError:
+        credentials = None
+
+    client_id = (
+        channel.get("client_id")
+        or (credentials.get("youtube_client_id") if credentials else None)
+        or os.environ.get("YOUTUBE_CLIENT_ID")
+        or os.environ.get("GOOGLE_CLIENT_ID")
+    )
+    client_secret = (
+        channel.get("client_secret")
+        or (credentials.get("youtube_client_secret") if credentials else None)
+        or os.environ.get("YOUTUBE_CLIENT_SECRET")
+        or os.environ.get("GOOGLE_CLIENT_SECRET")
+    )
 
     if not client_id or not client_secret:
         raise RuntimeError("Missing YOUTUBE_CLIENT_ID or YOUTUBE_CLIENT_SECRET in environment.")
