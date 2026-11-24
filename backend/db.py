@@ -931,14 +931,16 @@ def analytics_for_page(page_id):
 
 
 def posted_items_for_analytics():
-    """Every posted item with its fb id + page token, for the analytics refresh."""
+    """Most recent posted items with fb id + page token for the analytics refresh (capped for speed)."""
     with _conn() as c, c.cursor() as cur:
         cur.execute(
             """select l.page_id, l.source_video_id, l.fb_creation_id,
                       p.fb_access_token, p.fb_access_token_encrypted
                from posted_ledger l
                join pages p on p.id = l.page_id
-               where l.fb_creation_id is not null"""
+               where l.fb_creation_id is not null
+               order by l.posted_at desc nulls last
+               limit 30"""
         )
         return _with_page_tokens(cur.fetchall())
 
