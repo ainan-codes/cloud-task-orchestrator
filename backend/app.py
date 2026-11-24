@@ -2527,18 +2527,26 @@ def _do_run(start_time):
 
     due_fb = _process_due_posts(start_time=start_time)
     due_snap = _process_due_snapchat_posts(start_time=start_time)
+    due_yt = {"posted": 0, "failed": 0}
+    try:
+        import youtube_runner
+        yt_posted, yt_failed = youtube_runner.run_due_youtube_jobs()
+        due_yt = {"posted": yt_posted, "failed": yt_failed}
+    except Exception as e:
+        print(f"[run] youtube runner error: {e}")
+
     retry = _process_retries(start_time=start_time)
     refill = _process_auto_refill(start_time=start_time)
 
-    total_posted = due_fb["posted"] + due_snap["posted"]
-    total_failed = due_fb["failed"] + due_snap["failed"]
+    total_posted = due_fb["posted"] + due_snap["posted"] + due_yt["posted"]
+    total_failed = due_fb["failed"] + due_snap["failed"] + due_yt["failed"]
     total_deferred = due_fb.get("deferred", 0) + due_snap.get("deferred", 0)
 
-    print(f"[run] due: {total_posted} posted (FB: {due_fb['posted']}, Snap: {due_snap['posted']}), "
+    print(f"[run] due: {total_posted} posted (FB: {due_fb['posted']}, Snap: {due_snap['posted']}, YT: {due_yt['posted']}), "
           f"{total_failed} failed, {total_deferred} deferred | "
           f"retried: {retry['retried']}, abandoned: {retry['abandoned']} | "
           f"refilled: {len(refill)} page(s)")
-    return {"fb": due_fb, "snap": due_snap, "posted": total_posted, "failed": total_failed}, retry, refill
+    return {"fb": due_fb, "snap": due_snap, "youtube": due_yt, "posted": total_posted, "failed": total_failed}, retry, refill
 
 
 def _run_posting_job():
