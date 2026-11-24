@@ -2,7 +2,8 @@ name: Dispatch Due Tasks
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # Trigger on off-peak minutes to avoid GitHub's congested :00/:15/:30/:45 scheduling bottlenecks
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 
 env:
