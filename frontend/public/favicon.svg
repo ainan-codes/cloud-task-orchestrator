@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="reelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a6412a"/>
+      <stop offset="100%" stop-color="#732717"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff8ed"/>
+      <stop offset="100%" stop-color="#e8dac2"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Base Badge -->
+  <rect width="64" height="64" rx="16" fill="url(#reelGrad)" filter="url(#shadow)"/>
+  
+  <!-- Subtle Outer Border -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="none" stroke="#e8dac2" stroke-width="1.5" stroke-opacity="0.4"/>
+
+  <!-- Film Reel Spool Outer Ring -->
+  <circle cx="32" cy="32" r="22" fill="none" stroke="url(#goldGrad)" stroke-width="3"/>
+
+  <!-- Film Reel Inner Center Hub -->
+  <circle cx="32" cy="32" r="7" fill="url(#goldGrad)"/>
+  <circle cx="32" cy="32" r="3" fill="#732717"/>
+
+  <!-- Reel Film Holes (Classic 4-hole cinema reel design) -->
+  <circle cx="32" cy="18" r="3.5" fill="#732717" stroke="url(#goldGrad)" stroke-width="1"/>
+  <circle cx="46" cy="32" r="3.5" fill="#732717" stroke="url(#goldGrad)" stroke-width="1"/>
+  <circle cx="32" cy="46" r="3.5" fill="#732717" stroke="url(#goldGrad)" stroke-width="1"/>
+  <circle cx="18" cy="32" r="3.5" fill="#732717" stroke="url(#goldGrad)" stroke-width="1"/>
+
+  <!-- Subtle Film Sprocket Notch Accents -->
+  <circle cx="32" cy="6" r="1.2" fill="#e8dac2"/>
+  <circle cx="32" cy="58" r="1.2" fill="#e8dac2"/>
+  <circle cx="6" cy="32" r="1.2" fill="#e8dac2"/>
+  <circle cx="58" cy="32" r="1.2" fill="#e8dac2"/>
+</svg>

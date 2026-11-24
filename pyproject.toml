@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reel-ledger"
+version = "2.1.0"
+description = "Multi-platform short-form video automation engine for Facebook Reels and Snapchat Spotlight"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Mohammed Ainan", email = "ainandaddy@gmail.com" }
+]
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "supabase>=2.0.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "cryptography>=41.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"

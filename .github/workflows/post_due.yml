@@ -1,0 +1,104 @@
+name: Dispatch Due Tasks
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+env:
+  PYTHONUNBUFFERED: '1'
+  PYTHONFAULTHANDLER: '1'
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      # Diagnostics only — never fails the job, never prints a secret value.
+      - name: Verify environment
+        id: verify
+        continue-on-error: true
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -uo pipefail
+          python -VV
+          python - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          db = os.environ.get("DATABASE_URL", "")
+          print(f"DATABASE_URL: set={bool(db)} length={len(db)}")
+          if db:
+              u = urlsplit(db)
+              print(f"  host={u.hostname} port={u.port} user={u.username} "
+                    f"db={(u.path or '/').lstrip('/')} password={'set' if u.password else 'MISSING'}")
+              if u.port == 5432 and (u.hostname or '').startswith('db.'):
+                  print("  NOTE: direct connection host is IPv6-only; GitHub runners are")
+                  print("        IPv4-only. Use …pooler.supabase.com:6543 instead.")
+          else:
+              print("  ERROR: repository secret DATABASE_URL is empty or not defined.")
+
+          sa = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+          print(f"GOOGLE_SERVICE_ACCOUNT_JSON: set={bool(sa)} length={len(sa)}")
+          if sa.strip() in ("", "{}"):
+              print("  ERROR: empty or a bare '{}'.")
+          PY
+          for m in psycopg db drive poster; do
+            python -c "import $m; print('  $m OK')" || echo "  $m FAILED"
+          done
+
+      - name: Execute dispatch pipeline
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          RUN_TOKEN: ${{ secrets.RUN_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+        run: |
+          set -uo pipefail
+          python -u runner.py
+          rc=$?
+          echo "--- runner.py exited with code $rc ---"
+          exit $rc
+
+      - name: Refresh analytics
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          RUN_TOKEN: ${{ secrets.RUN_TOKEN }}
+        run: |
+          set -uo pipefail
+          python -u runner.py --analytics
+          rc=$?
+          echo "--- runner.py --analytics exited with code $rc ---"
+          exit $rc
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          echo "::error::Posting job failed."
+          echo "  1. DATABASE_URL secret must be the POOLER url"
+          echo "     (postgres.<ref>@aws-0-<region>.pooler.supabase.com:6543/postgres)."
+          echo "  2. Secret names are case-sensitive: DATABASE_URL,"
+          echo "     GOOGLE_SERVICE_ACCOUNT_JSON, RUN_TOKEN"
+          echo "Verify environment outcome: ${{ steps.verify.outcome }}"
