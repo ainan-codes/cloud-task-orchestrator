@@ -171,6 +171,11 @@ def execute_youtube_job(job: Dict[str, Any]) -> str:
     if job.get("is_short", True) and "#Shorts" not in raw_desc:
         raw_desc = f"{raw_desc}\n\n#Shorts #MrBeast #Viral"
 
+    # Always enforce the YouTube Fan Channel Policy disclaimer
+    fan_disclaimer = "\n\n---\n⚠️ Disclaimer: Unofficial fan channel sharing curated highlights and challenge moments. Not affiliated with or endorsed by MrBeast."
+    if "Disclaimer:" not in raw_desc and "fan channel" not in raw_desc.lower():
+        raw_desc = f"{raw_desc.rstrip()}{fan_disclaimer}"
+
     tags = job.get("tags") or []
     if isinstance(tags, str):
         tags = [t.strip() for t in tags.split(",") if t.strip()]
