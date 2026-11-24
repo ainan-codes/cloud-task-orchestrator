@@ -102,6 +102,29 @@ def get_daily_uploaded_count(channel_id: int) -> int:
             return row["cnt"] if row else 0
 
 
+def _find_thumbnail_for_job(job: Dict[str, Any]) -> Optional[str]:
+    """Find a matching high-impact vertical thumbnail for the job."""
+    fn = (job.get("file_name") or "").lower()
+    title = (job.get("title") or "").lower()
+
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "thumbnails")
+
+    if "athlete" in fn or "athlete" in title:
+        candidate = os.path.join(base_dir, "Beat_Athlete_Win_100k.jpg")
+        if os.path.exists(candidate):
+            return candidate
+    elif "grocery" in fn or "grocery" in title:
+        candidate = os.path.join(base_dir, "Grocery_Store_Win_1M.jpg")
+        if os.path.exists(candidate):
+            return candidate
+    elif "hunger" in fn or "hunger" in title:
+        candidate = os.path.join(base_dir, "Hunger_Games_Real_Life.jpg")
+        if os.path.exists(candidate):
+            return candidate
+
+    return None
+
+
 def execute_youtube_job(job: Dict[str, Any]) -> str:
     """Executes a claimed YouTube job (downloads media, streams to YouTube API, updates DB). Returns video_id."""
     job_id = job["id"]
@@ -173,7 +196,30 @@ def execute_youtube_job(job: Dict[str, Any]) -> str:
     video_id = resp.get("id")
     print(f"  [YOUTUBE OK] ✅ Published #{job_id} -> https://youtube.com/shorts/{video_id}")
 
-    # 4. Mark posted & write publishing record
+    # 4. Attach custom Short thumbnail if available
+    try:
+        thumb_path = _find_thumbnail_for_job(job)
+        if thumb_path and os.path.exists(thumb_path):
+            print(f"  [YOUTUBE] Attaching custom thumbnail: {os.path.basename(thumb_path)}...")
+            with open(thumb_path, "rb") as tf:
+                thumb_bytes = tf.read()
+            thumb_upload = MediaIoBaseUpload(
+                io.BytesIO(thumb_bytes),
+                mimetype="image/jpeg",
+                resumable=False
+            )
+            youtube.thumbnails().set(
+                videoId=video_id,
+                media_body=thumb_upload
+            ).execute()
+            print(f"  [YOUTUBE] ✅ Custom thumbnail successfully attached to {video_id}!")
+        else:
+            print(f"  [YOUTUBE] No companion thumbnail found for job #{job_id}, YouTube will use primary high-res frame.")
+    except Exception as te:
+        print(f"  [YOUTUBE NOTICE] Custom thumbnail could not be attached: {te}")
+        print(f"  [YOUTUBE NOTICE] (Note: YouTube requires phone verification in Studio to allow custom thumbnails via API)")
+
+    # 5. Mark posted & write publishing record
     with db._conn() as conn:
         with conn.cursor() as cur:
             cur.execute("""
