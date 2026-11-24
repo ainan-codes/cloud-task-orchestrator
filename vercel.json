@@ -7,12 +7,6 @@
   },
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "crons": [
-    {
-      "path": "/api/run",
-      "schedule": "*/15 * * * *"
-    }
-  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.py" },
     { "source": "/(.*)", "destination": "/index.html" }
