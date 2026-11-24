@@ -811,6 +811,11 @@ export const api = {
     }),
   deleteYoutubeChannel: (id) =>
     backendFetch(`/api/youtube/channels/${id}`, { method: "DELETE" }),
+  updateYoutubeChannelDescription: (id, payload) =>
+    backendFetch(`/api/youtube/channels/${id}/update-description`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   youtubeJobs: (params = "") =>
     backendFetch(
       "/api/youtube/jobs" +

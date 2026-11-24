@@ -88,6 +88,10 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
   const [newChannelTitle, setNewChannelTitle] = useState("");
   const [newCustomUrl, setNewCustomUrl] = useState("");
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [editingDescChannel, setEditingDescChannel] = useState(null);
+  const [descText, setDescText] = useState("");
+  const [copiedDesc, setCopiedDesc] = useState(false);
+  const [syncingDesc, setSyncingDesc] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -229,6 +233,25 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
       setNotice({ msg: `Retry failed: ${err.message}`, isErr: true });
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function handleSaveDescription() {
+    if (!editingDescChannel) return;
+    setSyncingDesc(true);
+    try {
+      const res = await api.updateYoutubeChannelDescription(editingDescChannel.id, {
+        description: descText,
+      });
+      setNotice({
+        msg: res.message || "Channel description saved successfully!",
+        isErr: false,
+      });
+      await loadData();
+    } catch (err) {
+      setNotice({ msg: `Failed to update description: ${err.message}`, isErr: true });
+    } finally {
+      setSyncingDesc(false);
     }
   }
 
@@ -967,6 +990,18 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
                           >
                             View Queue →
                           </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ fontSize: 11, padding: "3px 8px", marginRight: 6 }}
+                            onClick={() => {
+                              setEditingDescChannel(c);
+                              setDescText(c.description || "");
+                              setCopiedDesc(false);
+                            }}
+                          >
+                            Bio / Disclaimer 📝
+                          </button>
                           <a
                             href={`https://youtube.com/channel/${c.channel_id}`}
                             target="_blank"
@@ -992,6 +1027,131 @@ export default function YouTube({ subTab: propSubTab, onSelectSubTab }) {
               </table>
             )}
           </div>
+
+          {editingDescChannel && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0, 0, 0, 0.75)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                padding: 16,
+              }}
+              onClick={() => setEditingDescChannel(null)}
+            >
+              <div
+                className="card"
+                style={{
+                  maxWidth: 640,
+                  width: "100%",
+                  maxHeight: "90vh",
+                  overflowY: "auto",
+                  padding: 24,
+                  background: "var(--bg-card, #121417)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                      <YouTubeIcon size={18} />
+                      <span>Channel Bio & Fan Page Disclaimer</span>
+                    </h3>
+                    <div style={{ fontSize: 12, color: "var(--ink-muted)", marginTop: 4 }}>
+                      {editingDescChannel.title} {editingDescChannel.custom_url ? `(${editingDescChannel.custom_url})` : ""} · ID: {editingDescChannel.channel_id}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ fontSize: 12, padding: "4px 8px" }}
+                    onClick={() => setEditingDescChannel(null)}
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div
+                  style={{
+                    background: "rgba(239, 68, 68, 0.08)",
+                    border: "1px solid rgba(239, 68, 68, 0.25)",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    marginBottom: 16,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong style={{ color: "#ef4444" }}>YouTube Policy Requirement:</strong> To prevent automated bot bans for impersonation, YouTube requires channels curating creator content to maintain an explicit <strong>Fan Channel Disclaimer</strong> in their native channel language.
+                </div>
+
+                <label style={{ display: "grid", gap: 6, marginBottom: 16 }}>
+                  <span className="sec-label" style={{ fontSize: 12, fontWeight: 600 }}>Channel Description / Bio (Native Language):</span>
+                  <textarea
+                    rows={8}
+                    value={descText}
+                    onChange={(e) => setDescText(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      fontSize: 13,
+                      fontFamily: "inherit",
+                      lineHeight: 1.6,
+                      borderRadius: 6,
+                      background: "var(--bg-subtle, #1a1d21)",
+                      border: "1px solid var(--border)",
+                      color: "var(--ink)",
+                    }}
+                  />
+                </label>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ fontSize: 12, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(descText);
+                        setCopiedDesc(true);
+                        setTimeout(() => setCopiedDesc(false), 2500);
+                      }}
+                    >
+                      {copiedDesc ? "✅ Copied to Clipboard!" : "📋 Copy Description"}
+                    </button>
+                    <a
+                      href={`https://studio.youtube.com/channel/${editingDescChannel.channel_id}/editing/details`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn"
+                      style={{ fontSize: 12, padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none" }}
+                    >
+                      <span>Open YouTube Studio Basic Info</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ background: YT_RED, borderColor: YT_RED, color: "#fff", fontWeight: 600, fontSize: 12, padding: "6px 14px" }}
+                    disabled={syncingDesc}
+                    onClick={handleSaveDescription}
+                  >
+                    {syncingDesc ? "Saving…" : "Save in System"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

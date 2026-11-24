@@ -79,5 +79,13 @@ class TestAutopilotAndAi(unittest.TestCase):
         scheduled = db.list_scheduled(page_id=page_id, status="pending")
         self.assertTrue(len(scheduled) >= 3)
 
+        # Cleanup test artifacts from database so production queues remain pristine
+        with db._conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM scheduled_posts WHERE page_id = %s", (page_id,))
+                cur.execute("DELETE FROM content_items WHERE page_id = %s", (page_id,))
+                cur.execute("DELETE FROM pages WHERE id = %s", (page_id,))
+            conn.commit()
+
 if __name__ == "__main__":
     unittest.main()

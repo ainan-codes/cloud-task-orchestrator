@@ -86,7 +86,7 @@ def youtube_oauth_authorize():
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+        "scope": "https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/youtube https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
         "access_type": "offline",
         "prompt": "consent",
         "include_granted_scopes": "true",
@@ -182,6 +182,10 @@ def youtube_oauth_callback(
     return RedirectResponse(f"{frontend_base}/?tab=youtube&connected=1")
 
 
+class ChannelDescUpdate(BaseModel):
+    description: str
+
+
 @youtube_router.get("/channels")
 def list_youtube_channels():
     """List connected YouTube channels with per-channel job statistics."""
@@ -190,7 +194,7 @@ def list_youtube_channels():
             cur.execute("""
                 SELECT c.id, c.channel_id, c.title, c.custom_url, c.thumbnail_url,
                        c.default_privacy, c.default_tags, c.is_connected,
-                       c.token_expires_at, c.created_at, c.updated_at,
+                       c.token_expires_at, c.created_at, c.updated_at, c.description,
                        COUNT(j.id) FILTER (WHERE j.status = 'pending') as pending_count,
                        COUNT(j.id) FILTER (WHERE j.status = 'posted') as posted_count,
                        COUNT(j.id) FILTER (WHERE j.status = 'failed') as failed_count,
@@ -201,6 +205,59 @@ def list_youtube_channels():
                 ORDER BY c.id ASC;
             """)
             return cur.fetchall()
+
+
+@youtube_router.post("/channels/{channel_id}/update-description")
+def update_channel_description(channel_id: int, req: ChannelDescUpdate):
+    """Update channel description in database and attempt live YouTube API sync."""
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE youtube_channels
+                SET description = %s, updated_at = now()
+                WHERE id = %s
+                RETURNING id, channel_id, title, client_id, client_secret,
+                          access_token_encrypted, refresh_token_encrypted;
+            """, (req.description, channel_id))
+            ch = cur.fetchone()
+            conn.commit()
+
+    if not ch:
+        raise HTTPException(404, "Channel not found")
+
+    api_success = False
+    api_err = None
+    try:
+        import youtube_runner
+        from googleapiclient.discovery import build
+        creds = youtube_runner._get_youtube_creds(ch)
+        yt = build("youtube", "v3", credentials=creds)
+        yt.channels().update(
+            part="brandingSettings",
+            body={
+                "id": ch["channel_id"],
+                "brandingSettings": {
+                    "channel": {
+                        "description": req.description
+                    }
+                }
+            }
+        ).execute()
+        api_success = True
+    except Exception as e:
+        api_err = str(e)
+
+    return {
+        "success": True,
+        "channel_id": channel_id,
+        "api_synced": api_success,
+        "error": api_err,
+        "message": (
+            "Channel description updated live on YouTube!"
+            if api_success
+            else "Description saved in system. (To push live to YouTube via API, re-authorize channel to grant channel management scope)."
+        )
+    }
 
 
 @youtube_router.post("/channels")
