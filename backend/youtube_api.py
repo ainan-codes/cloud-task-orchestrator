@@ -150,8 +150,8 @@ def youtube_oauth_callback(
                 INSERT INTO youtube_channels (
                     channel_id, title, custom_url, thumbnail_url,
                     access_token_encrypted, refresh_token_encrypted,
-                    token_expires_at, is_connected, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, true, now())
+                    token_expires_at, is_connected, client_id, client_secret, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, true, %s, %s, now())
                 ON CONFLICT (channel_id) DO UPDATE SET
                     title = EXCLUDED.title,
                     custom_url = COALESCE(EXCLUDED.custom_url, youtube_channels.custom_url),
@@ -159,12 +159,15 @@ def youtube_oauth_callback(
                     access_token_encrypted = EXCLUDED.access_token_encrypted,
                     refresh_token_encrypted = COALESCE(EXCLUDED.refresh_token_encrypted, youtube_channels.refresh_token_encrypted),
                     token_expires_at = EXCLUDED.token_expires_at,
+                    client_id = COALESCE(EXCLUDED.client_id, youtube_channels.client_id),
+                    client_secret = COALESCE(EXCLUDED.client_secret, youtube_channels.client_secret),
                     is_connected = true,
                     updated_at = now()
                 RETURNING id, channel_id, title;
             """, (
                 channel_id, title, custom_url, thumb,
-                enc_access, enc_refresh, expires_at
+                enc_access, enc_refresh, expires_at,
+                client_id, client_secret
             ))
             conn.commit()
 

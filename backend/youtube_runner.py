@@ -45,8 +45,8 @@ def _get_youtube_creds(channel: Dict[str, Any]) -> Credentials:
     access_token = decrypt_token(enc_access) if enc_access else None
     refresh_token = decrypt_token(enc_refresh) if enc_refresh else None
 
-    client_id = os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
-    client_secret = os.environ.get("YOUTUBE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
+    client_id = channel.get("client_id") or os.environ.get("YOUTUBE_CLIENT_ID") or os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = channel.get("client_secret") or os.environ.get("YOUTUBE_CLIENT_SECRET") or os.environ.get("GOOGLE_CLIENT_SECRET")
 
     if not client_id or not client_secret:
         raise RuntimeError("Missing YOUTUBE_CLIENT_ID or YOUTUBE_CLIENT_SECRET in environment.")
@@ -244,7 +244,8 @@ def post_youtube_job_now(job_id: int) -> Dict[str, Any]:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT j.*, c.channel_id as yt_channel_id, c.title as channel_title,
-                       c.access_token_encrypted, c.refresh_token_encrypted, c.token_expires_at
+                       c.access_token_encrypted, c.refresh_token_encrypted, c.token_expires_at,
+                       c.client_id, c.client_secret
                 FROM youtube_jobs j
                 JOIN youtube_channels c ON j.channel_id = c.id
                 WHERE j.id = %s;
@@ -311,7 +312,8 @@ def run_due_youtube_jobs(limit: int = 5) -> Tuple[int, int]:
 
             cur.execute("""
                 SELECT j.*, c.channel_id as yt_channel_id, c.title as channel_title,
-                       c.access_token_encrypted, c.refresh_token_encrypted, c.token_expires_at
+                       c.access_token_encrypted, c.refresh_token_encrypted, c.token_expires_at,
+                       c.client_id, c.client_secret
                 FROM youtube_jobs j
                 JOIN youtube_channels c ON j.channel_id = c.id
                 WHERE j.status = 'pending'
