@@ -2916,6 +2916,11 @@ def trigger_runner(bg: BackgroundTasks, x_run_token: Optional[str] = Header(None
             runner.run_due_snapchat_posts()
         except Exception as e:
             applog.logger.error(f"Error in runner.run_due_snapchat_posts: {e}")
+        try:
+            import youtube_runner
+            youtube_runner.run_due_youtube_jobs()
+        except Exception as e:
+            applog.logger.error(f"Error in youtube_runner.run_due_youtube_jobs: {e}")
 
     bg.add_task(run_all)
     return {"status": "started", "message": "Self-healing sweep & due post execution started in background."}
